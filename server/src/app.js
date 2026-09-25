@@ -1,23 +1,35 @@
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import healthRoutes from './routes/health.routes.js';
+import authRoutes from './routes/auth.routes.js';
+import profileRoutes from './routes/profile.routes.js';
 
 const app = express();
 
-// Enable Cross-Origin Resource Sharing (CORS)
-app.use(cors());
+// Configure CORS for frontend with credentials support
+const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+app.use(
+  cors({
+    origin: clientUrl,
+    credentials: true,
+  })
+);
 
-// Parse incoming JSON request bodies
+// Parse cookies and incoming JSON request bodies
+app.use(cookieParser());
 app.use(express.json());
 
 // API Routes
 app.use('/api/health', healthRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/profile', profileRoutes);
 
 // 404 handler for undefined routes
 app.use((req, res) => {
   res.status(404).json({
     status: 'error',
-    message: `Cannot ${req.method} ${req.originalUrl}`
+    message: `Cannot ${req.method} ${req.originalUrl}`,
   });
 });
 
@@ -26,7 +38,7 @@ app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
   res.status(err.status || 500).json({
     status: 'error',
-    message: err.message || 'Internal Server Error'
+    message: err.message || 'Internal Server Error',
   });
 });
 

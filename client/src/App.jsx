@@ -1,7 +1,15 @@
 import { useState, useEffect } from 'react';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { checkHealth } from './services/api';
+import LoginForm from './components/auth/LoginForm';
+import RegisterForm from './components/auth/RegisterForm';
+import ProfileView from './components/profile/ProfileView';
 
-export default function App() {
+function AppContent() {
+  const { user, loading: authLoading, logout } = useAuth();
+  const [authMode, setAuthMode] = useState('login'); // 'login' | 'register'
+
+  // Backend Health check status
   const [healthStatus, setHealthStatus] = useState({
     loading: true,
     data: null,
@@ -27,100 +35,148 @@ export default function App() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col justify-center items-center px-4 py-12">
-      <main className="max-w-2xl w-full bg-slate-800/80 border border-slate-700/80 rounded-2xl p-8 shadow-2xl backdrop-blur-sm">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-400/30 text-indigo-400 text-xs font-semibold uppercase tracking-wider mb-4">
-            Milestone 1 — Project Foundation
-          </div>
-          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white mb-2">
-            SkillUp
-          </h1>
-          <p className="text-slate-400 text-sm sm:text-base">
-            AI-powered learning & opportunity platform for engineering students
-          </p>
-        </div>
-
-        {/* Status Indicators */}
-        <div className="space-y-4 mb-8">
-          {/* Frontend status */}
-          <div className="flex items-center justify-between p-4 rounded-xl bg-slate-900/60 border border-slate-700/60">
-            <div className="flex items-center space-x-3">
-              <span className="relative flex h-3 w-3">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-              </span>
-              <div>
-                <p className="text-sm font-medium text-white">Frontend Service</p>
-                <p className="text-xs text-slate-400">React + Vite + Tailwind CSS</p>
-              </div>
-            </div>
-            <span className="text-xs font-medium px-2.5 py-1 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              Running
+    <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col justify-between">
+      {/* Top Navigation Bar */}
+      <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur-md sticky top-0 z-50">
+        <div className="max-w-6xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center space-x-3">
+            <span className="text-xl font-extrabold tracking-tight text-white flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
+              SkillUp
+            </span>
+            <span className="text-xs px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-medium">
+              Milestone 2
             </span>
           </div>
 
-          {/* Backend status */}
-          <div className="flex items-center justify-between p-4 rounded-xl bg-slate-900/60 border border-slate-700/60">
-            <div className="flex items-center space-x-3">
-              <span className="relative flex h-3 w-3">
+          {/* Health indicator and User actions */}
+          <div className="flex items-center gap-4">
+            {/* Backend health status badge */}
+            <div
+              onClick={testBackendConnection}
+              title="Click to re-test backend health"
+              className="hidden sm:flex items-center space-x-2 px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-xs cursor-pointer hover:border-slate-600 transition-colors"
+            >
+              <span className="relative flex h-2 w-2">
                 {healthStatus.loading ? (
-                  <span className="animate-pulse relative inline-flex rounded-full h-3 w-3 bg-amber-400"></span>
+                  <span className="animate-pulse inline-flex rounded-full h-2 w-2 bg-amber-400"></span>
                 ) : healthStatus.data ? (
-                  <>
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-                  </>
+                  <span className="inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
                 ) : (
-                  <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
+                  <span className="inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
                 )}
               </span>
-              <div>
-                <p className="text-sm font-medium text-white">Backend Health Check</p>
-                <p className="text-xs text-slate-400">
-                  {healthStatus.loading
-                    ? 'Connecting to GET /api/health...'
-                    : healthStatus.data
-                    ? `Status: ${healthStatus.data.status} — ${healthStatus.data.message}`
-                    : `Error: ${healthStatus.error}`}
-                </p>
-              </div>
+              <span className="text-slate-400">
+                {healthStatus.loading
+                  ? 'Checking API...'
+                  : healthStatus.data
+                  ? 'API Online'
+                  : 'API Offline'}
+              </span>
             </div>
-            <button
-              onClick={testBackendConnection}
-              className="text-xs font-medium px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white transition-all duration-150 cursor-pointer"
-            >
-              Retest
-            </button>
+
+            {/* Auth status controls */}
+            {authLoading ? (
+              <span className="text-xs text-slate-400">Verifying session...</span>
+            ) : user ? (
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-slate-300 hidden md:inline">
+                  {user.name} ({user.email})
+                </span>
+                <button
+                  type="button"
+                  onClick={logout}
+                  className="text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition-colors cursor-pointer"
+                >
+                  Sign Out
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAuthMode('login')}
+                  className={`text-xs px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                    authMode === 'login'
+                      ? 'bg-indigo-600 text-white font-medium'
+                      : 'text-slate-300 hover:text-white'
+                  }`}
+                >
+                  Sign In
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAuthMode('register')}
+                  className={`text-xs px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                    authMode === 'register'
+                      ? 'bg-indigo-600 text-white font-medium'
+                      : 'text-slate-300 hover:text-white'
+                  }`}
+                >
+                  Sign Up
+                </button>
+              </div>
+            )}
           </div>
         </div>
+      </header>
 
-        {/* Product Loop preview */}
-        <div className="p-4 rounded-xl bg-indigo-950/30 border border-indigo-900/50">
-          <p className="text-xs font-semibold text-indigo-300 uppercase tracking-wider mb-2">
-            Core Product Loop
-          </p>
-          <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-300">
-            <span className="bg-slate-800 px-2 py-1 rounded">Learn</span>
-            <span className="text-indigo-400">→</span>
-            <span className="bg-slate-800 px-2 py-1 rounded">Track</span>
-            <span className="text-indigo-400">→</span>
-            <span className="bg-slate-800 px-2 py-1 rounded">Discover</span>
-            <span className="text-indigo-400">→</span>
-            <span className="bg-slate-800 px-2 py-1 rounded">Match</span>
-            <span className="text-indigo-400">→</span>
-            <span className="bg-slate-800 px-2 py-1 rounded">Find Skill Gaps</span>
-            <span className="text-indigo-400">→</span>
-            <span className="bg-slate-800 px-2 py-1 rounded">Learn Again</span>
+      {/* Main Content Area */}
+      <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-8 flex flex-col justify-center">
+        {authLoading ? (
+          <div className="flex flex-col items-center justify-center p-12 text-slate-400">
+            <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+            <p className="text-sm">Initializing session...</p>
           </div>
-        </div>
+        ) : user ? (
+          <ProfileView />
+        ) : (
+          <div className="space-y-8">
+            {/* Introductory Hero info */}
+            <div className="text-center max-w-xl mx-auto">
+              <h1 className="text-3xl font-extrabold text-white tracking-tight">
+                SkillUp Student Portal
+              </h1>
+              <p className="text-sm text-slate-400 mt-2">
+                Sign in or create an account to configure your branch, year, goals, and track your skills matrix.
+              </p>
+            </div>
 
-        {/* Footer note */}
-        <p className="text-center text-xs text-slate-500 mt-6">
-          Milestone 1 ready. Ready for Milestone 2.
-        </p>
+            {/* Auth Form Switcher */}
+            {authMode === 'login' ? (
+              <LoginForm onSwitchToRegister={() => setAuthMode('register')} />
+            ) : (
+              <RegisterForm onSwitchToLogin={() => setAuthMode('login')} />
+            )}
+          </div>
+        )}
       </main>
+
+      {/* Footer */}
+      <footer className="border-t border-slate-800 bg-slate-900/60 py-6 px-4">
+        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
+          <div>
+            <span className="font-semibold text-slate-400">SkillUp</span> — Milestone 2: MySQL Database + Authentication + Student Profile
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="bg-slate-800 px-2 py-0.5 rounded text-slate-400">Learn</span>
+            <span className="text-slate-600">→</span>
+            <span className="bg-slate-800 px-2 py-0.5 rounded text-slate-400">Track</span>
+            <span className="text-slate-600">→</span>
+            <span className="bg-slate-800 px-2 py-0.5 rounded text-slate-400">Discover</span>
+            <span className="text-slate-600">→</span>
+            <span className="bg-slate-800 px-2 py-0.5 rounded text-slate-400">Match</span>
+          </div>
+        </div>
+      </footer>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
