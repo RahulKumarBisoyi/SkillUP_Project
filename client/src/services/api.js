@@ -96,6 +96,42 @@ export async function getRecommendations(searchParams) {
   });
 }
 
+/**
+ * Personalized Learning Tracks API (Milestone 4)
+ */
+export async function generateTrackPreview(payload) {
+  return apiRequest('/api/tracks/generate', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function createTrack(payload) {
+  return apiRequest('/api/tracks', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getTracks() {
+  return apiRequest('/api/tracks', {
+    method: 'GET',
+  });
+}
+
+export async function getTrackById(trackId) {
+  return apiRequest(`/api/tracks/${trackId}`, {
+    method: 'GET',
+  });
+}
+
+export async function updateTrackTask(trackId, taskId, completed) {
+  return apiRequest(`/api/tracks/${trackId}/tasks/${taskId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ completed }),
+  });
+}
+
 export default {
   checkHealth,
   register,
@@ -105,4 +141,9 @@ export default {
   getProfile,
   updateProfile,
   getRecommendations,
+  generateTrackPreview,
+  createTrack,
+  getTracks,
+  getTrackById,
+  updateTrackTask,
 };

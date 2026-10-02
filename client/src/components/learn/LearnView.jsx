@@ -1,13 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import * as api from '../../services/api';
 import ResourceCard from './ResourceCard';
+import TrackPreview from '../tracks/TrackPreview';
+import { scrollToTop } from '../../utils/scroll';
 import {
   LEARNING_TOPICS,
   LEARNING_GOALS,
   LEARNING_TIMES,
 } from '../../constants/learningTopics';
 
-export default function LearnView() {
+export default function LearnView({ onTrackCreated }) {
   const [topic, setTopic] = useState('');
   const [level, setLevel] = useState('Beginner');
   const [goal, setGoal] = useState('');
@@ -17,9 +19,18 @@ export default function LearnView() {
   const [error, setError] = useState(null);
   const [resultsData, setResultsData] = useState(null); // { topic, level, aiPersonalized, resources }
 
+  // Milestone 4: Track preview generation state
+  const [creatingVideoId, setCreatingVideoId] = useState(null);
+  const [previewData, setPreviewData] = useState(null);
+
+  // Scroll to top when LearnView opens or when navigating between LearnView and TrackPreview
+  useEffect(() => {
+    scrollToTop();
+  }, [previewData]);
+
   const handleSearch = async (e) => {
     e.preventDefault();
-    if (loading) return;
+    if (loading || creatingVideoId) return;
     if (!topic.trim()) {
       setError('Please select a learning topic from the available options.');
       return;
@@ -27,6 +38,7 @@ export default function LearnView() {
 
     setLoading(true);
     setError(null);
+    setPreviewData(null);
 
     try {
       const response = await api.getRecommendations({
@@ -44,10 +56,50 @@ export default function LearnView() {
     }
   };
 
+  const handleCreateTrack = async (selectedResource) => {
+    if (!selectedResource?.videoId || creatingVideoId) return;
+
+    setCreatingVideoId(selectedResource.videoId);
+    setError(null);
+
+    try {
+      const res = await api.generateTrackPreview({
+        videoId: selectedResource.videoId,
+        topic: resultsData?.topic || topic.trim(),
+        level: resultsData?.level || level,
+        goal: goal.trim(),
+        availableTime: availableTime.trim(),
+      });
+
+      if (res && res.preview) {
+        setPreviewData(res.preview);
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to generate learning track schedule. Please try again.');
+    } finally {
+      setCreatingVideoId(null);
+    }
+  };
+
   const handleSelectTopic = (selectedTitle) => {
     setTopic(selectedTitle);
     setError(null);
   };
+
+  if (previewData) {
+    return (
+      <TrackPreview
+        preview={previewData}
+        onBack={() => setPreviewData(null)}
+        onTrackSaved={(savedTrackId) => {
+          setPreviewData(null);
+          if (typeof onTrackCreated === 'function') {
+            onTrackCreated(savedTrackId);
+          }
+        }}
+      />
+    );
+  }
 
   return (
     <div className="w-full max-w-6xl mx-auto space-y-8">
@@ -298,7 +350,13 @@ export default function LearnView() {
           {resultsData.resources && resultsData.resources.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {resultsData.resources.map((resource) => (
-                <ResourceCard key={resource.videoId} resource={resource} />
+                <ResourceCard
+                  key={resource.videoId}
+                  resource={resource}
+                  onCreateTrack={handleCreateTrack}
+                  isCreatingTrack={creatingVideoId === resource.videoId}
+                  disableCreateTrack={Boolean(creatingVideoId)}
+                />
               ))}
             </div>
           ) : (

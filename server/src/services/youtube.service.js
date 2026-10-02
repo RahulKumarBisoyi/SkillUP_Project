@@ -6,6 +6,7 @@ dotenv.config();
 const YOUTUBE_CACHE_TTL_MS = 15 * 60 * 1000;
 const YOUTUBE_FETCH_TIMEOUT_MS = 8000;
 const youtubeCache = new Map();
+const videoByIdCache = new Map();
 const inFlightSearches = new Map();
 
 /**
@@ -252,7 +253,13 @@ async function performYouTubeSearch(topic, targetCandidates, apiKey) {
   // Sort by educational score descending to keep highest quality courses/tutorials
   candidates.sort((a, b) => b.score - a.score);
 
-  const finalCandidates = candidates.slice(0, targetCandidates).map(({ score, ...rest }) => rest);
+  const finalCandidates = candidates.slice(0, targetCandidates).map(({ score, ...rest }) => {
+    videoByIdCache.set(rest.videoId, {
+      timestamp: Date.now(),
+      data: rest,
+    });
+    return rest;
+  });
   const filterMs = Number((performance.now() - tFilterStart).toFixed(2));
 
   console.log(
@@ -316,8 +323,100 @@ export async function searchYouTubeVideos(topic, targetCandidates = 10) {
   return results.map((item) => ({ ...item }));
 }
 
+/**
+ * Retrieve verified YouTube video metadata by videoId.
+ * Uses cached metadata if available, or queries YouTube Data API v3 videos endpoint directly.
+ *
+ * @param {string} videoId - YouTube video ID.
+ * @returns {Promise<Object|null>} Verified video metadata or null if not found.
+ */
+export async function getYouTubeVideoById(videoId) {
+  if (!videoId || typeof videoId !== 'string' || !/^[a-zA-Z0-9_-]{6,20}$/.test(videoId.trim())) {
+    return null;
+  }
+
+  const cleanId = videoId.trim();
+
+  // 1. Check in-memory cache first
+  const cached = videoByIdCache.get(cleanId);
+  if (cached && Date.now() - cached.timestamp < YOUTUBE_CACHE_TTL_MS) {
+    return { ...cached.data };
+  }
+
+  const apiKey = process.env.YOUTUBE_API_KEY;
+  if (!apiKey) {
+    const error = new Error('YouTube API key is not configured on the server.');
+    error.statusCode = 500;
+    throw error;
+  }
+
+  const videosUrl = new URL('https://www.googleapis.com/youtube/v3/videos');
+  videosUrl.searchParams.set('part', 'snippet,contentDetails');
+  videosUrl.searchParams.set('id', cleanId);
+  videosUrl.searchParams.set('key', apiKey);
+
+  let videosResponse;
+  try {
+    videosResponse = await fetch(videosUrl.toString(), {
+      signal: AbortSignal.timeout(YOUTUBE_FETCH_TIMEOUT_MS),
+    });
+  } catch (netErr) {
+    const error = new Error('Network error or timeout while verifying YouTube video metadata.');
+    error.statusCode = 502;
+    throw error;
+  }
+
+  if (!videosResponse.ok) {
+    const errorData = await videosResponse.json().catch(() => ({}));
+    const message = errorData.error?.message || `YouTube Videos API returned status ${videosResponse.status}`;
+    const error = new Error(`Failed to verify YouTube video metadata: ${message}`);
+    error.statusCode = 502;
+    throw error;
+  }
+
+  const videosData = await videosResponse.json();
+  const item = videosData.items?.[0];
+  if (!item || !item.id) {
+    return null;
+  }
+
+  const snippet = item.snippet || {};
+  const contentDetails = item.contentDetails || {};
+  const durationSeconds = parseISO8601Duration(contentDetails.duration || '');
+  const duration = formatDuration(durationSeconds);
+  const title = decodeHtmlEntities(snippet.title || 'Untitled Video');
+  const channel = decodeHtmlEntities(snippet.channelTitle || 'Unknown Channel');
+  const description = decodeHtmlEntities(snippet.description || '');
+  const publishedAt = snippet.publishedAt || null;
+  const thumbnail =
+    snippet.thumbnails?.high?.url ||
+    snippet.thumbnails?.medium?.url ||
+    snippet.thumbnails?.default?.url ||
+    `https://img.youtube.com/vi/${cleanId}/hqdefault.jpg`;
+
+  const verifiedVideo = {
+    videoId: cleanId,
+    title,
+    channel,
+    description,
+    thumbnail,
+    publishedAt,
+    duration,
+    durationSeconds,
+    url: `https://www.youtube.com/watch?v=${cleanId}`,
+  };
+
+  videoByIdCache.set(cleanId, {
+    timestamp: Date.now(),
+    data: verifiedVideo,
+  });
+
+  return { ...verifiedVideo };
+}
+
 export default {
   searchYouTubeVideos,
+  getYouTubeVideoById,
   parseISO8601Duration,
   formatDuration,
 };

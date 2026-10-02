@@ -128,6 +128,66 @@ The application connects to a MySQL 8 database (`skillup_db`) with the following
    - `status`: ENUM('Knows', 'Learning') NOT NULL
    - UNIQUE KEY (`user_id`, `skill`): Prevents duplicate skills per user
 
+4. **`learning_tracks`** *(Milestone 4)*
+   - `id`: INT AUTO_INCREMENT PRIMARY KEY
+   - `user_id`: INT NOT NULL (FK -> `users.id` ON DELETE CASCADE)
+   - `topic`: VARCHAR(255) NOT NULL
+   - `learning_goal`: VARCHAR(500)
+   - `level`: ENUM('Beginner', 'Intermediate', 'Advanced')
+   - `available_time`: VARCHAR(100)
+   - `resource_video_id`: VARCHAR(64) NOT NULL
+   - `resource_title`: VARCHAR(500) NOT NULL
+   - `resource_channel`: VARCHAR(255)
+   - `resource_url`: VARCHAR(500) NOT NULL
+   - `resource_thumbnail`: VARCHAR(500)
+   - `resource_duration`: VARCHAR(64)
+   - `ai_generated`: TINYINT(1) DEFAULT 0
+   - `start_date`: DATE NOT NULL
+   - `status`: ENUM('Active', 'Completed') DEFAULT 'Active'
+   - `created_at` / `updated_at`: TIMESTAMP
+
+5. **`track_tasks`** *(Milestone 4)*
+   - `id`: INT AUTO_INCREMENT PRIMARY KEY
+   - `track_id`: INT NOT NULL (FK -> `learning_tracks.id` ON DELETE CASCADE)
+   - `day_number`: INT NOT NULL
+   - `title`: VARCHAR(255) NOT NULL
+   - `description`: TEXT
+   - `task_type`: ENUM('Watch', 'Practice', 'Revision')
+   - `estimated_minutes`: INT NOT NULL
+   - `completed`: TINYINT(1) DEFAULT 0
+   - `completed_at`: TIMESTAMP NULL
+   - `sort_order`: INT NOT NULL
+
+---
+
+## Personalized Learning Tracks Architecture (Milestone 4)
+
+### How Track Generation Works
+1. **Explicit Resource Selection**: On the Learn page, each recommended YouTube card includes a **Create My Track** button.
+2. **Authoritative YouTube Metadata Verification**: When clicked, the backend (`POST /api/tracks/generate`) verifies the selected `videoId` directly via `getYouTubeVideoById` so title, channel, thumbnail, URL, and duration come from YouTube rather than untrusted frontend input.
+3. **Flexible Schedule & Daily Time Budget**:
+   - The backend parses the student's daily available time (`30 minutes/day` to `4+ hours/day`) into a strict daily minute budget.
+   - Schedule duration scales flexibly based on the verified video length, supplementary practice, and daily time budget.
+   - Using `process.env.GEMINI_MODEL` (with an 8-second master timeout budget), Gemini generates daily `Watch`, `Practice`, and `Revision` tasks without inventing URLs or timestamps.
+   - If Gemini is unavailable or times out, a deterministic non-AI fallback schedule is generated from the verified video duration and clearly labeled in the UI.
+   - Post-processing and backend validation ensure that the combined estimated minutes of all tasks on any day never exceed the student's daily learning time.
+
+### How Track Progress Is Stored
+- **Preview Before Persistence**: Generated schedules are returned as a preview first (`TrackPreview.jsx`) and are only saved to MySQL when the student clicks **Save My Track**.
+- **Transactional Persistence (`POST /api/tracks`)**: The backend strictly validates the task list (task types, sequential day numbers starting at Day 1, per-task and per-day minute limits) and inserts the track and all tasks inside a single MySQL transaction.
+- **Task Completion & Progress Calculation (`PATCH /api/tracks/:id/tasks/:taskId`)**:
+  - Checking or unchecking a task updates `completed` and `completed_at` in `track_tasks` after verifying track ownership (`user_id = req.user.id`).
+  - Overall progress percentage is computed from stored completion data (`Math.round((completedTasks / totalTasks) * 100)`), and the track status automatically updates to `'Completed'` when all tasks are finished.
+
+### Milestone 4 Backend Endpoints (All Protected by JWT Auth)
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `POST` | `/api/tracks/generate` | Generate a study schedule preview for a verified YouTube video without saving to DB |
+| `POST` | `/api/tracks` | Validate and save a confirmed learning track and its tasks in a MySQL transaction |
+| `GET` | `/api/tracks` | List all saved learning tracks and progress metrics for the authenticated student |
+| `GET` | `/api/tracks/:id` | Retrieve full details and ordered daily tasks for a specific owned learning track |
+| `PATCH` | `/api/tracks/:id/tasks/:taskId` | Toggle a task's completion status and recalculate track progress/status |
+
 ---
 
 ## Authentication Strategy
@@ -179,8 +239,8 @@ GEMINI_MODEL=gemini-3.8-flash
 ```
 *(Never commit `.env` to Git. The `.gitignore` rules ensure `.env` remains strictly local.)*
 
-#### Initialize Database Schema
-Run the automated schema runner to create the `skillup_db` database and execute all table definitions:
+#### Initialize / Migrate Database Schema
+Run the automated schema runner to create `skillup_db` and initialize all Milestone 2 & Milestone 4 tables (`users`, `profiles`, `user_skills`, `learning_tracks`, `track_tasks`) without losing existing data:
 ```bash
 npm run db:init
 ```
@@ -201,16 +261,15 @@ The backend server runs on `http://localhost:5000`.
 # Health check
 curl http://localhost:5000/api/health
 
-# Registration
-curl -X POST http://localhost:5000/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Alex","email":"alex@college.edu","password":"password123"}'
-
-# Learning Resource Recommendations (Protected)
-curl -X POST http://localhost:5000/api/learn/recommend \
+# Generate a Learning Track Preview (Protected)
+curl -X POST http://localhost:5000/api/tracks/generate \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <your_jwt_token>" \
-  -d '{"topic":"DSA in C++","level":"Beginner","goal":"Placement prep","availableTime":"1 hour per day"}'
+  -d '{"videoId":"-TkoO8Z07hI","topic":"DSA in C++","level":"Beginner","goal":"Placement preparation","availableTime":"1 hour/day"}'
+
+# List Saved Learning Tracks (Protected)
+curl http://localhost:5000/api/tracks \
+  -H "Authorization: Bearer <your_jwt_token>"
 ```
 
 ---
@@ -258,11 +317,16 @@ The React frontend starts on `http://localhost:5173`.
   - Student Profile & Skills matrix CRUD with MySQL persistence
   - Frontend authentication (Sign In, Sign Up) & Student Profile UI
 - [x] **Milestone 3: Learning Resource Discovery**
-  - YouTube Data API v3 integration with authentic video metadata
-  - Google Gemini API integration for personalized ranking and explanations
-  - Resilient fallback for Gemini transient spikes (standard YouTube results)
+  - YouTube Data API v3 integration with authentic video metadata & caching
+  - Long-form video filtering (`>= 8 mins`, excluding Shorts)
+  - Google Gemini API integration for personalized ranking and explanations (8s time budget)
+  - Resilient fallback for Gemini transient spikes
   - Protected recommendation endpoint `POST /api/learn/recommend`
-  - Frontend Learn Page with responsive YouTube resource cards
-  - Safe external YouTube links (`target="_blank" rel="noopener noreferrer"`)
-- [ ] **Milestone 4**: Personalized learning tracks & progress tracking *(upcoming)*
+  - Frontend Learn Page with selectable topics, goals, daily times, and resource cards
+- [x] **Milestone 4: Personalized Learning Tracks**
+  - MySQL tables `learning_tracks` and `track_tasks` with transactional persistence
+  - Authoritative YouTube single-video metadata verification (`getYouTubeVideoById`)
+  - Gemini personalized study plan generation (`generateTrackSchedule`) with flexible duration, strict daily time limit enforcement, and non-AI fallback
+  - Protected REST endpoints (`POST /api/tracks/generate`, `POST /api/tracks`, `GET /api/tracks`, `GET /api/tracks/:id`, `PATCH /api/tracks/:id/tasks/:taskId`)
+  - Frontend **Create My Track**, **Track Preview**, **My Tracks**, and **Track Detail** progress tracking views
 - [ ] **Milestone 5**: Opportunity discovery & skill-gap matching *(upcoming)*

@@ -216,6 +216,407 @@ Return ONLY a valid JSON object matching this schema:
   }
 }
 
+const VALID_TASK_TYPES = new Set(['Watch', 'Practice', 'Revision']);
+
+/**
+ * Parse the student's daily available learning time into minutes.
+ * Supports strings like "30 minutes/day", "1 hour/day", "2 hours/day", "3 hours/day", "4+ hours/day",
+ * or falls back to profile learning_hours_per_day or 60 minutes.
+ */
+export function parseDailyBudgetMinutes(availableTime, profileHoursPerDay = null) {
+  if (availableTime && typeof availableTime === 'string') {
+    const lower = availableTime.toLowerCase().trim();
+    if (lower.includes('30 min')) return 30;
+    const hourMatch = lower.match(/(\d+(?:\.\d+)?)\s*\+?\s*hour/);
+    if (hourMatch) {
+      const hrs = parseFloat(hourMatch[1]);
+      if (hrs > 0 && hrs <= 12) return Math.round(hrs * 60);
+    }
+    const minMatch = lower.match(/(\d+)\s*min/);
+    if (minMatch) {
+      const mins = parseInt(minMatch[1], 10);
+      if (mins >= 15 && mins <= 720) return mins;
+    }
+  }
+  if (profileHoursPerDay && Number(profileHoursPerDay) > 0) {
+    return Math.min(720, Math.max(30, Math.round(Number(profileHoursPerDay) * 60)));
+  }
+  return 60; // Default 1 hour/day
+}
+
+/**
+ * Normalize tasks, strip any fabricated URLs/timestamps, and strictly enforce that
+ * the sum of estimated_minutes on any day never exceeds dailyBudgetMinutes.
+ */
+export function normalizeAndEnforceDailyBudget(rawTasks, dailyBudgetMinutes) {
+  if (!Array.isArray(rawTasks) || rawTasks.length === 0) return [];
+
+  const maxDaily = Math.max(15, Math.min(720, Number(dailyBudgetMinutes) || 60));
+  const sanitized = [];
+
+  for (const item of rawTasks) {
+    if (!item || typeof item !== 'object') continue;
+    const rawTitle = typeof item.title === 'string' ? item.title.trim() : '';
+    if (!rawTitle) continue;
+
+    // Remove any fabricated URLs from title/description
+    const cleanTitle = rawTitle.replace(/https?:\/\/\S+/gi, '').trim().slice(0, 250);
+    const rawDesc = typeof item.description === 'string' ? item.description.trim() : '';
+    const cleanDesc = rawDesc.replace(/https?:\/\/\S+/gi, '').trim().slice(0, 1000);
+
+    let taskType = typeof item.taskType === 'string' ? item.taskType.trim() : 'Watch';
+    // Normalize case
+    if (taskType.toLowerCase() === 'watch') taskType = 'Watch';
+    else if (taskType.toLowerCase() === 'practice') taskType = 'Practice';
+    else if (taskType.toLowerCase() === 'revision' || taskType.toLowerCase() === 'review') taskType = 'Revision';
+    if (!VALID_TASK_TYPES.has(taskType)) taskType = 'Practice';
+
+    let mins = parseInt(item.estimatedMinutes ?? item.estimated_minutes, 10);
+    if (Number.isNaN(mins) || mins < 5) mins = Math.min(20, maxDaily);
+    // Single task cannot exceed the daily budget
+    if (mins > maxDaily) mins = maxDaily;
+
+    sanitized.push({
+      requestedDay: parseInt(item.dayNumber ?? item.day_number, 10) || 0,
+      title: cleanTitle || `${taskType} Session`,
+      description: cleanDesc || `Complete this ${taskType.toLowerCase()} task for your learning track.`,
+      taskType,
+      estimatedMinutes: mins,
+      completed: false,
+    });
+  }
+
+  if (sanitized.length === 0) return [];
+
+  // Pack tasks into days respecting both requested day boundaries and the strict daily time budget
+  const finalTasks = [];
+  let currentDay = 1;
+  let currentDayMinutes = 0;
+  let lastRequestedDay = sanitized[0].requestedDay;
+
+  for (let i = 0; i < sanitized.length; i++) {
+    const t = sanitized[i];
+    const requestedNewDay = t.requestedDay > 0 && t.requestedDay > lastRequestedDay && currentDayMinutes > 0;
+    const wouldExceedBudget = currentDayMinutes > 0 && currentDayMinutes + t.estimatedMinutes > maxDaily;
+
+    if (requestedNewDay || wouldExceedBudget) {
+      currentDay += 1;
+      currentDayMinutes = 0;
+    }
+
+    if (t.requestedDay > 0) {
+      lastRequestedDay = t.requestedDay;
+    }
+
+    currentDayMinutes += t.estimatedMinutes;
+    finalTasks.push({
+      dayNumber: currentDay,
+      title: t.title,
+      description: t.description,
+      taskType: t.taskType,
+      estimatedMinutes: t.estimatedMinutes,
+      completed: false,
+      sortOrder: i + 1,
+    });
+  }
+
+  return finalTasks.slice(0, 60); // Reasonable cap on total tasks
+}
+
+/**
+ * Deterministic, clearly labelled non-AI study schedule fallback when Gemini is unavailable.
+ * Calculates realistic duration from verified video length, supplementary practice, and daily time budget.
+ */
+export function buildFallbackSchedule({
+  topic,
+  level = 'Beginner',
+  goal = 'General learning',
+  resource,
+  dailyBudgetMinutes = 60,
+}) {
+  const maxDaily = Math.max(15, Math.min(720, Number(dailyBudgetMinutes) || 60));
+  const videoSeconds = Number(resource?.durationSeconds) || 1800; // Default 30m if unknown
+  const totalVideoMinutes = Math.max(10, Math.ceil(videoSeconds / 60));
+
+  const rawTasks = [];
+  let remainingVideoMins = totalVideoMinutes;
+  let sessionIndex = 1;
+  const totalWatchSessions = Math.max(
+    1,
+    Math.min(14, Math.ceil(totalVideoMinutes / Math.max(15, Math.floor(maxDaily * 0.65))))
+  );
+
+  while (remainingVideoMins > 0 && rawTasks.length < 40) {
+    // Allocate ~65% of daily budget to watching and ~35% to supplementary practice
+    const watchMinutes =
+      maxDaily >= 30
+        ? Math.min(remainingVideoMins, Math.max(15, Math.floor(maxDaily * 0.65)))
+        : Math.min(remainingVideoMins, maxDaily);
+
+    remainingVideoMins -= watchMinutes;
+
+    rawTasks.push({
+      dayNumber: sessionIndex,
+      title:
+        totalWatchSessions === 1
+          ? `Watch "${resource.title}"`
+          : `Watch "${resource.title}" — Study Session ${sessionIndex}`,
+      description: `Watch approximately ${watchMinutes} minutes of the verified video "${resource.title}" by ${resource.channel} and take structured notes on key ${topic} concepts.`,
+      taskType: 'Watch',
+      estimatedMinutes: watchMinutes,
+    });
+
+    const leftoverToday = maxDaily - watchMinutes;
+    if (leftoverToday >= 10) {
+      rawTasks.push({
+        dayNumber: sessionIndex,
+        title: `Supplementary ${topic} Practice — Session ${sessionIndex}`,
+        description: `Supplementary learning activity (outside the video): practice applying the ${topic} concepts covered in Session ${sessionIndex} at a ${level} level toward your goal (${goal || 'skill building'}).`,
+        taskType: 'Practice',
+        estimatedMinutes: leftoverToday,
+      });
+    }
+
+    sessionIndex += 1;
+  }
+
+  // Final day dedicated to hands-on practice and comprehensive revision
+  const practiceMins = Math.max(10, Math.floor(maxDaily * 0.5));
+  const revisionMins = Math.max(10, maxDaily - practiceMins);
+
+  rawTasks.push({
+    dayNumber: sessionIndex,
+    title: `Hands-On ${topic} Consolidation Exercise`,
+    description: `Supplementary learning activity: solve practice problems or build a small exercise in ${topic} without looking at your notes.`,
+    taskType: 'Practice',
+    estimatedMinutes: practiceMins,
+  });
+
+  if (revisionMins >= 10 && practiceMins + revisionMins <= maxDaily) {
+    rawTasks.push({
+      dayNumber: sessionIndex,
+      title: `Final ${topic} Concept Revision & Self-Check`,
+      description: `Supplementary revision activity: review your notes from "${resource.title}" and identify any areas needing additional practice.`,
+      taskType: 'Revision',
+      estimatedMinutes: revisionMins,
+    });
+  }
+
+  return normalizeAndEnforceDailyBudget(rawTasks, maxDaily);
+}
+
+/**
+ * Generate a personalized daily study schedule using Gemini (process.env.GEMINI_MODEL)
+ * within an 8-second master budget, falling back cleanly to a deterministic schedule if unavailable.
+ */
+export async function generateTrackSchedule({
+  topic,
+  level = 'Beginner',
+  goal = 'General learning',
+  availableTime = '1 hour/day',
+  resource,
+  profile = null,
+}) {
+  const dailyBudgetMinutes = parseDailyBudgetMinutes(
+    availableTime,
+    profile?.learning_hours_per_day
+  );
+  const videoMinutes = Math.max(10, Math.ceil((Number(resource?.durationSeconds) || 1800) / 60));
+
+  // Calculate flexible target days based on verified video length + ~40% practice/revision overhead
+  const totalEstimatedEffortMinutes = Math.ceil(videoMinutes * 1.45);
+  const suggestedDays = Math.max(
+    2,
+    Math.min(21, Math.ceil(totalEstimatedEffortMinutes / dailyBudgetMinutes))
+  );
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  const primaryModel = process.env.GEMINI_MODEL || 'gemini-flash-latest';
+
+  if (!apiKey) {
+    const fallbackTasks = buildFallbackSchedule({
+      topic,
+      level,
+      goal,
+      resource,
+      dailyBudgetMinutes,
+    });
+    return { tasks: fallbackTasks, aiGenerated: false, dailyBudgetMinutes };
+  }
+
+  const startTime = performance.now();
+  const budgetController = new AbortController();
+  const budgetTimer = setTimeout(() => {
+    budgetController.abort(new Error('Gemini track generation budget (8s) exceeded'));
+  }, GEMINI_BUDGET_MS);
+
+  const profileContext = profile
+    ? `Student Profile Context: Branch="${profile.branch || 'Engineering'}", Year="${profile.college_year || 'N/A'}", Career Goals="${profile.career_goals || 'N/A'}".`
+    : '';
+
+  const prompt = `You are an expert engineering mentor creating a personalized study schedule for a student.
+
+STUDENT PREFERENCES:
+- Topic: "${topic}"
+- Current Level: "${level}"
+- Learning Goal: "${goal || 'Build strong foundational and practical skills'}"
+- Daily Available Learning Time: "${availableTime || `${dailyBudgetMinutes} minutes/day`}" (STRICT MAXIMUM: ${dailyBudgetMinutes} minutes per day)
+${profileContext}
+
+VERIFIED YOUTUBE RESOURCE:
+- Video Title: "${resource.title}"
+- Channel: "${resource.channel}"
+- Verified Duration: "${resource.duration || `${videoMinutes} minutes`}" (${videoMinutes} total minutes)
+- Verified Description Excerpt: "${(resource.description || '').slice(0, 400)}"
+
+STRICT SCHEDULE & CONTENT ACCURACY RULES:
+1. Flexible Duration: Based on the ${videoMinutes}-minute video plus supplementary practice and revision at <= ${dailyBudgetMinutes} minutes/day, structure a realistic ${suggestedDays}-day study plan (you may adjust by +/- 2 days if appropriate, between 2 and 21 days).
+2. Daily Time Limit: The combined "estimatedMinutes" of ALL tasks on any given "dayNumber" MUST NOT exceed ${dailyBudgetMinutes} minutes.
+3. Content Honesty:
+   - Do NOT invent YouTube URLs, video IDs, video chapters, or timestamps.
+   - Do NOT claim the video covers subtopics unless supported by the verified title/description above.
+   - For "Practice" and "Revision" tasks, explicitly frame them as supplementary learning activities/exercises to reinforce "${topic}".
+4. Task Types: Every task must have "taskType" set to exactly one of: "Watch", "Practice", or "Revision".
+
+Return ONLY a valid JSON object matching this exact schema:
+{
+  "tasks": [
+    {
+      "dayNumber": 1,
+      "title": "STRING_TASK_TITLE",
+      "description": "STRING_CONCISE_DESCRIPTION",
+      "taskType": "Watch",
+      "estimatedMinutes": 30
+    }
+  ]
+}`;
+
+  const requestBody = {
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: {
+      responseMimeType: 'application/json',
+      temperature: 0.3,
+    },
+  };
+
+  try {
+    let response;
+    try {
+      response = await callGeminiApi(primaryModel, apiKey, requestBody, budgetController.signal);
+    } catch (primaryErr) {
+      const elapsedMs = Math.round(performance.now() - startTime);
+      console.warn(
+        `[Gemini Track Service] Primary model (${primaryModel}) aborted/failed after ${elapsedMs}ms. Using non-AI fallback schedule.`
+      );
+      const fallbackTasks = buildFallbackSchedule({
+        topic,
+        level,
+        goal,
+        resource,
+        dailyBudgetMinutes,
+      });
+      return { tasks: fallbackTasks, aiGenerated: false, dailyBudgetMinutes };
+    }
+
+    if (response.status === 503 || response.status === 404) {
+      const elapsedMs = Math.round(performance.now() - startTime);
+      const remainingBudgetMs = GEMINI_BUDGET_MS - elapsedMs;
+      const fallbackModel = 'gemini-flash-lite-latest';
+
+      if (
+        primaryModel !== fallbackModel &&
+        remainingBudgetMs >= MIN_RETRY_BUDGET_MS &&
+        !budgetController.signal.aborted
+      ) {
+        console.warn(
+          `[Gemini Track Service] Primary model (${primaryModel}) returned ${response.status} in ${elapsedMs}ms. Retrying with ${fallbackModel} (remaining budget: ${remainingBudgetMs}ms)...`
+        );
+        response = await callGeminiApi(fallbackModel, apiKey, requestBody, budgetController.signal);
+      } else {
+        console.warn(
+          `[Gemini Track Service] Primary model (${primaryModel}) returned ${response.status} after ${elapsedMs}ms. Using non-AI fallback schedule.`
+        );
+        const fallbackTasks = buildFallbackSchedule({
+          topic,
+          level,
+          goal,
+          resource,
+          dailyBudgetMinutes,
+        });
+        return { tasks: fallbackTasks, aiGenerated: false, dailyBudgetMinutes };
+      }
+    }
+
+    if (!response.ok) {
+      console.warn(
+        `[Gemini Track Service] API returned status ${response.status}. Using non-AI fallback schedule.`
+      );
+      const fallbackTasks = buildFallbackSchedule({
+        topic,
+        level,
+        goal,
+        resource,
+        dailyBudgetMinutes,
+      });
+      return { tasks: fallbackTasks, aiGenerated: false, dailyBudgetMinutes };
+    }
+
+    const data = await response.json();
+    const candidateOutput = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    const parsed = cleanAndParseJson(candidateOutput);
+
+    if (!parsed || !Array.isArray(parsed.tasks) || parsed.tasks.length === 0) {
+      console.warn('[Gemini Track Service] Invalid JSON task array from model. Using non-AI fallback.');
+      const fallbackTasks = buildFallbackSchedule({
+        topic,
+        level,
+        goal,
+        resource,
+        dailyBudgetMinutes,
+      });
+      return { tasks: fallbackTasks, aiGenerated: false, dailyBudgetMinutes };
+    }
+
+    const validatedTasks = normalizeAndEnforceDailyBudget(parsed.tasks, dailyBudgetMinutes);
+    if (validatedTasks.length === 0) {
+      const fallbackTasks = buildFallbackSchedule({
+        topic,
+        level,
+        goal,
+        resource,
+        dailyBudgetMinutes,
+      });
+      return { tasks: fallbackTasks, aiGenerated: false, dailyBudgetMinutes };
+    }
+
+    const totalMs = Math.round(performance.now() - startTime);
+    console.log(
+      `[Gemini Track Service] Generated ${validatedTasks.length} tasks across ${validatedTasks[validatedTasks.length - 1].dayNumber} days in ${totalMs}ms`
+    );
+
+    return { tasks: validatedTasks, aiGenerated: true, dailyBudgetMinutes };
+  } catch (err) {
+    const elapsedMs = Math.round(performance.now() - startTime);
+    console.warn(
+      `[Gemini Track Service] Error/timeout after ${elapsedMs}ms (${err.message}). Using non-AI fallback schedule.`
+    );
+    const fallbackTasks = buildFallbackSchedule({
+      topic,
+      level,
+      goal,
+      resource,
+      dailyBudgetMinutes,
+    });
+    return { tasks: fallbackTasks, aiGenerated: false, dailyBudgetMinutes };
+  } finally {
+    clearTimeout(budgetTimer);
+  }
+}
+
 export default {
   rankAndExplainResources,
+  generateTrackSchedule,
+  parseDailyBudgetMinutes,
+  normalizeAndEnforceDailyBudget,
+  buildFallbackSchedule,
 };

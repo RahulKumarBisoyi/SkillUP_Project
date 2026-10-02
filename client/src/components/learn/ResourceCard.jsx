@@ -1,4 +1,9 @@
-export default function ResourceCard({ resource }) {
+export default function ResourceCard({
+  resource,
+  onCreateTrack,
+  isCreatingTrack = false,
+  disableCreateTrack = false,
+}) {
   const formattedDate = resource.publishedAt
     ? new Date(resource.publishedAt).toLocaleDateString(undefined, {
         year: 'numeric',
@@ -65,16 +70,37 @@ export default function ResourceCard({ resource }) {
           </div>
         </div>
 
-        {/* Watch on YouTube Button */}
-        <div className="pt-2">
+        {/* Action Buttons: Create My Track & Watch on YouTube */}
+        <div className="pt-2 space-y-2.5">
+          {onCreateTrack && (
+            <button
+              type="button"
+              onClick={() => onCreateTrack(resource)}
+              disabled={disableCreateTrack || isCreatingTrack}
+              className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] text-white font-semibold text-xs sm:text-sm transition-all duration-150 shadow-md shadow-emerald-600/25 cursor-pointer"
+            >
+              {isCreatingTrack ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                  <span>Generating Track Plan...</span>
+                </>
+              ) : (
+                <>
+                  <span>Create My Track</span>
+                  <span aria-hidden="true">→</span>
+                </>
+              )}
+            </button>
+          )}
+
           <a
             href={resource.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] text-white font-medium text-xs sm:text-sm transition-all duration-150 shadow-md shadow-indigo-600/30 cursor-pointer"
+            className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-slate-700/80 hover:bg-slate-700 border border-slate-600/80 active:scale-[0.98] text-slate-100 font-medium text-xs sm:text-sm transition-all duration-150 cursor-pointer"
           >
             <span>Watch on YouTube</span>
-            <span aria-hidden="true" className="text-indigo-200">↗</span>
+            <span aria-hidden="true" className="text-indigo-300">↗</span>
           </a>
         </div>
       </div>

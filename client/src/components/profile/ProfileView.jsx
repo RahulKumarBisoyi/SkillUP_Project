@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import * as api from '../../services/api';
+import { scrollToTop } from '../../utils/scroll';
 
 export default function ProfileView({ onSaveSuccess }) {
   const { user } = useAuth();
@@ -48,6 +49,12 @@ export default function ProfileView({ onSaveSuccess }) {
   useEffect(() => {
     loadProfile();
   }, []);
+
+  useEffect(() => {
+    if (!loading) {
+      scrollToTop();
+    }
+  }, [loading]);
 
   // Skill management
   const handleAddSkill = (e) => {

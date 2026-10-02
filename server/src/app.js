@@ -5,6 +5,7 @@ import healthRoutes from './routes/health.routes.js';
 import authRoutes from './routes/auth.routes.js';
 import profileRoutes from './routes/profile.routes.js';
 import learnRoutes from './routes/learn.routes.js';
+import trackRoutes from './routes/track.routes.js';
 
 const app = express();
 
@@ -26,6 +27,7 @@ app.use('/api/health', healthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/learn', learnRoutes);
+app.use('/api/tracks', trackRoutes);
 
 // 404 handler for undefined routes
 app.use((req, res) => {
