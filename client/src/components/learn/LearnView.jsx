@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import * as api from '../../services/api';
 import ResourceCard from './ResourceCard';
 import TrackPreview from '../tracks/TrackPreview';
@@ -9,24 +9,149 @@ import {
   LEARNING_TIMES,
 } from '../../constants/learningTopics';
 
-export default function LearnView({ onTrackCreated }) {
+function mapHoursToLearningTime(hoursVal) {
+  const hrs = Number(hoursVal);
+  if (!hrs || Number.isNaN(hrs) || hrs <= 0) return '';
+  if (hrs <= 0.6) return '30 minutes/day';
+  if (hrs <= 1.4) return '1 hour/day';
+  if (hrs <= 2.4) return '2 hours/day';
+  if (hrs <= 3.4) return '3 hours/day';
+  return '4+ hours/day';
+}
+
+export default function LearnView({
+  onTrackCreated,
+  bridgeContext = null,
+  onReturnToOpportunity,
+  onClearBridgeContext,
+}) {
   const [topic, setTopic] = useState('');
   const [level, setLevel] = useState('Beginner');
   const [goal, setGoal] = useState('');
   const [availableTime, setAvailableTime] = useState('');
+  const [savedProfileTime, setSavedProfileTime] = useState('');
+  const [activeContextToken, setActiveContextToken] = useState(
+    bridgeContext?.contextToken || null
+  );
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [resultsData, setResultsData] = useState(null); // { topic, level, aiPersonalized, resources }
+  const [resultsData, setResultsData] = useState(null);
 
   // Milestone 4: Track preview generation state
   const [creatingVideoId, setCreatingVideoId] = useState(null);
   const [previewData, setPreviewData] = useState(null);
 
+  // Load student's saved learning_hours_per_day preference once
+  useEffect(() => {
+    let isMounted = true;
+    api
+      .getProfile()
+      .then((res) => {
+        if (!isMounted) return;
+        const mapped = mapHoursToLearningTime(
+          res?.profile?.learning_hours_per_day
+        );
+        if (mapped) {
+          setSavedProfileTime(mapped);
+          setAvailableTime((prev) => prev || mapped);
+        }
+      })
+      .catch(() => {
+        // Non-blocking fallback if profile has not been configured yet
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Build topic list: includes predefined topics + validated context-provided opportunity skill if not in catalog
+  const availableTopics = useMemo(() => {
+    if (!bridgeContext?.targetSkill) {
+      return LEARNING_TOPICS;
+    }
+    const targetClean = String(bridgeContext.targetSkill).trim();
+    const existingCatalogItem = LEARNING_TOPICS.find(
+      (t) => t.title.toLowerCase() === targetClean.toLowerCase()
+    );
+    if (existingCatalogItem) {
+      return LEARNING_TOPICS;
+    }
+    return [
+      {
+        id: 'bridge-opportunity-skill',
+        title: targetClean,
+        category: 'Opportunity Skill',
+        description: `Validated skill to develop for ${
+          bridgeContext.opportunityTitle || 'your selected opportunity'
+        }`,
+        icon: '🎯',
+        isOpportunitySkill: true,
+      },
+      ...LEARNING_TOPICS,
+    ];
+  }, [bridgeContext]);
+
+  // Build goal options: prepend opportunity-specific preparation goal when bridgeContext is active
+  const availableGoals = useMemo(() => {
+    if (!bridgeContext?.opportunityTitle) {
+      return LEARNING_GOALS;
+    }
+    const oppGoalValue = `Prepare for ${bridgeContext.opportunityTitle}`;
+    return [
+      {
+        value: oppGoalValue,
+        label: oppGoalValue,
+        isOpportunityGoal: true,
+      },
+      ...LEARNING_GOALS,
+    ];
+  }, [bridgeContext]);
+
+  // Prepopulate topic, Beginner level (Adjustment 4), opportunity goal, and saved time when bridgeContext arrives
+  useEffect(() => {
+    if (!bridgeContext?.targetSkill) return;
+    const targetClean = String(bridgeContext.targetSkill).trim();
+    const catalogMatch = LEARNING_TOPICS.find(
+      (t) => t.title.toLowerCase() === targetClean.toLowerCase()
+    );
+    const resolvedTopic = catalogMatch ? catalogMatch.title : targetClean;
+
+    setTopic(resolvedTopic);
+    // Adjustment 4: Default to Beginner when the student's level for the selected skill is unknown
+    setLevel('Beginner');
+    if (bridgeContext.opportunityTitle) {
+      setGoal(`Prepare for ${bridgeContext.opportunityTitle}`);
+    }
+    if (savedProfileTime) {
+      setAvailableTime((prev) => prev || savedProfileTime);
+    }
+    setActiveContextToken(bridgeContext.contextToken || null);
+    setResultsData(null);
+    setPreviewData(null);
+    setError(null);
+  }, [
+    bridgeContext?.opportunityId,
+    bridgeContext?.targetSkill,
+    bridgeContext?.opportunityTitle,
+    bridgeContext?.contextToken,
+    savedProfileTime,
+  ]);
+
   // Scroll to top when LearnView opens or when navigating between LearnView and TrackPreview
   useEffect(() => {
     scrollToTop();
-  }, [previewData]);
+  }, [previewData, bridgeContext?.opportunityId, bridgeContext?.targetSkill]);
+
+  const isTopicLinkedToBridgeSkill = useMemo(() => {
+    if (!bridgeContext?.opportunityId || !bridgeContext?.targetSkill || !topic) {
+      return false;
+    }
+    return (
+      topic.trim().toLowerCase() ===
+      String(bridgeContext.targetSkill).trim().toLowerCase()
+    );
+  }, [bridgeContext, topic]);
 
   const handleSearch = async (e) => {
     e.preventDefault();
@@ -41,13 +166,25 @@ export default function LearnView({ onTrackCreated }) {
     setPreviewData(null);
 
     try {
-      const response = await api.getRecommendations({
+      const payload = {
         topic: topic.trim(),
         level,
         goal: goal.trim(),
         availableTime: availableTime.trim(),
-      });
+      };
 
+      if (isTopicLinkedToBridgeSkill) {
+        payload.opportunityId = bridgeContext.opportunityId;
+        payload.targetSkill = bridgeContext.targetSkill;
+        if (activeContextToken || bridgeContext.contextToken) {
+          payload.contextToken = activeContextToken || bridgeContext.contextToken;
+        }
+      }
+
+      const response = await api.getRecommendations(payload);
+      if (response?.opportunityContext?.contextToken) {
+        setActiveContextToken(response.opportunityContext.contextToken);
+      }
       setResultsData(response);
     } catch (err) {
       setError(err.message || 'Failed to retrieve recommendations. Please try again.');
@@ -63,15 +200,34 @@ export default function LearnView({ onTrackCreated }) {
     setError(null);
 
     try {
-      const res = await api.generateTrackPreview({
+      const activeTopic = resultsData?.topic || topic.trim();
+      const payload = {
         videoId: selectedResource.videoId,
-        topic: resultsData?.topic || topic.trim(),
+        topic: activeTopic,
         level: resultsData?.level || level,
         goal: goal.trim(),
         availableTime: availableTime.trim(),
-      });
+      };
+
+      if (
+        bridgeContext?.opportunityId &&
+        bridgeContext?.targetSkill &&
+        activeTopic.toLowerCase() ===
+          String(bridgeContext.targetSkill).trim().toLowerCase()
+      ) {
+        payload.opportunityId = bridgeContext.opportunityId;
+        payload.targetSkill = bridgeContext.targetSkill;
+        if (activeContextToken || bridgeContext.contextToken) {
+          payload.contextToken = activeContextToken || bridgeContext.contextToken;
+        }
+      }
+
+      const res = await api.generateTrackPreview(payload);
 
       if (res && res.preview) {
+        if (res.preview.contextToken) {
+          setActiveContextToken(res.preview.contextToken);
+        }
         setPreviewData(res.preview);
       }
     } catch (err) {
@@ -91,6 +247,7 @@ export default function LearnView({ onTrackCreated }) {
       <TrackPreview
         preview={previewData}
         onBack={() => setPreviewData(null)}
+        onReturnToOpportunity={onReturnToOpportunity}
         onTrackSaved={(savedTrackId) => {
           setPreviewData(null);
           if (typeof onTrackCreated === 'function') {
@@ -102,12 +259,95 @@ export default function LearnView({ onTrackCreated }) {
   }
 
   return (
-    <div className="w-full max-w-6xl mx-auto space-y-8">
+    <div className="w-full max-w-6xl mx-auto space-y-6">
+      {/* Milestone 7: Opportunity Context Banner when Bridge My Skill Gap is active */}
+      {bridgeContext?.opportunityId && (
+        <div
+          role="region"
+          aria-label="Opportunity learning context"
+          className="p-4 sm:p-5 rounded-2xl bg-indigo-950/35 border border-indigo-500/40 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+        >
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">
+                <span>🎯</span>
+                <span>Bridge My Skill Gap</span>
+              </span>
+              {bridgeContext.organization && (
+                <span className="text-xs text-slate-300 font-medium">
+                  {bridgeContext.organization}
+                </span>
+              )}
+            </div>
+            <h3 className="text-sm sm:text-base font-extrabold text-white">
+              Learning{' '}
+              <span className="text-indigo-300">
+                {topic || bridgeContext.targetSkill}
+              </span>{' '}
+              for{' '}
+              <span className="text-emerald-300">
+                {bridgeContext.opportunityTitle}
+              </span>
+            </h3>
+            <p className="text-xs text-slate-300">
+              Review or adjust your level, daily time, and goal below, then
+              click <strong className="text-white">Find Learning Resources</strong>.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {onReturnToOpportunity && (
+              <button
+                type="button"
+                onClick={() =>
+                  onReturnToOpportunity(bridgeContext.opportunityId)
+                }
+                className="text-xs font-semibold px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors cursor-pointer"
+              >
+                ← Return to Opportunity
+              </button>
+            )}
+            {bridgeContext.sourceUrl && (
+              <a
+                href={bridgeContext.sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs font-semibold px-3 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-indigo-300 border border-slate-700 transition-colors inline-flex items-center gap-1"
+              >
+                <span>Official Page</span>
+                <span aria-hidden="true">↗</span>
+              </a>
+            )}
+            {onClearBridgeContext && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClearBridgeContext();
+                  if (
+                    availableTopics.some(
+                      (t) => t.isOpportunitySkill && t.title === topic
+                    )
+                  ) {
+                    setTopic('');
+                  }
+                }}
+                className="text-xs px-2.5 py-2 rounded-xl text-slate-400 hover:text-white transition-colors cursor-pointer"
+                title="Switch to general learning without opportunity link"
+              >
+                ✕ Clear Context
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Search Header & Form Box */}
       <div className="bg-slate-800/90 border border-slate-700/80 rounded-2xl p-6 sm:p-8 shadow-2xl backdrop-blur-sm">
         <div className="text-center max-w-2xl mx-auto mb-8">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-400/30 text-indigo-400 text-xs font-semibold uppercase tracking-wider mb-3">
-            Milestone 3 — Learning Resource Discovery
+            {bridgeContext?.opportunityId
+              ? 'Milestone 7 — Bridge My Skill Gap'
+              : 'Milestone 3 — Learning Resource Discovery'}
           </div>
           <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
             Discover Real Learning Resources
@@ -125,7 +365,7 @@ export default function LearnView({ onTrackCreated }) {
               <label htmlFor="topic-select" className="block text-xs font-semibold uppercase tracking-wider text-slate-300">
                 Select Learning Topic <span className="text-rose-400">*</span>
               </label>
-              <div className="w-full sm:w-64">
+              <div className="w-full sm:w-72">
                 <select
                   id="topic-select"
                   value={topic}
@@ -133,7 +373,7 @@ export default function LearnView({ onTrackCreated }) {
                   className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs cursor-pointer"
                 >
                   <option value="">-- Choose from available topics --</option>
-                  {LEARNING_TOPICS.map((t) => (
+                  {availableTopics.map((t) => (
                     <option key={t.id} value={t.title}>
                       {t.title} ({t.category})
                     </option>
@@ -144,7 +384,7 @@ export default function LearnView({ onTrackCreated }) {
 
             {/* Selectable Topic Cards Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-              {LEARNING_TOPICS.map((item) => {
+              {availableTopics.map((item) => {
                 const isSelected = topic === item.title;
                 return (
                   <button
@@ -160,7 +400,13 @@ export default function LearnView({ onTrackCreated }) {
                     <div>
                       <div className="flex items-center justify-between gap-2 mb-1.5">
                         <span className="text-base">{item.icon}</span>
-                        <span className="text-[10px] uppercase font-semibold tracking-wider px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700/60">
+                        <span
+                          className={`text-[10px] uppercase font-semibold tracking-wider px-2 py-0.5 rounded border ${
+                            item.isOpportunitySkill
+                              ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
+                              : 'bg-slate-800 text-slate-400 border-slate-700/60'
+                          }`}
+                        >
                           {item.category}
                         </span>
                       </div>
@@ -242,7 +488,7 @@ export default function LearnView({ onTrackCreated }) {
               </div>
             </div>
 
-            {/* Learning Goal (Predefined Options) */}
+            {/* Learning Goal (Predefined + Opportunity Context Options) */}
             <div>
               <label htmlFor="goal-select" className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
                 Learning Goal
@@ -254,7 +500,7 @@ export default function LearnView({ onTrackCreated }) {
                 className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs sm:text-sm cursor-pointer"
               >
                 <option value="">Select learning goal</option>
-                {LEARNING_GOALS.map((g) => (
+                {availableGoals.map((g) => (
                   <option key={g.value} value={g.value}>
                     {g.label}
                   </option>
@@ -262,18 +508,18 @@ export default function LearnView({ onTrackCreated }) {
               </select>
               {/* Quick Selectable Pills */}
               <div className="flex flex-wrap gap-1 mt-2">
-                {LEARNING_GOALS.map((g) => (
+                {availableGoals.map((g) => (
                   <button
                     key={g.value}
                     type="button"
                     onClick={() => setGoal(g.value)}
-                    className={`text-[10px] px-2 py-0.5 rounded-md transition-colors cursor-pointer ${
+                    className={`text-[10px] px-2 py-0.5 rounded-md transition-colors cursor-pointer truncate max-w-full ${
                       goal === g.value
                         ? 'bg-indigo-600 text-white font-medium'
                         : 'bg-slate-700/40 text-slate-400 hover:text-slate-200 hover:bg-slate-700'
                     }`}
                   >
-                    {g.label}
+                    {g.isOpportunityGoal ? '🎯 Prepare for Opportunity' : g.label}
                   </button>
                 ))}
               </div>
@@ -320,9 +566,20 @@ export default function LearnView({ onTrackCreated }) {
           {/* Results Summary Bar */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl bg-slate-800/60 border border-slate-700/60">
             <div>
-              <h3 className="text-base font-bold text-white">
-                Results for &ldquo;{resultsData.topic}&rdquo;
-              </h3>
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-base font-bold text-white">
+                  Results for &ldquo;{resultsData.topic}&rdquo;
+                </h3>
+                {resultsData.opportunityContext?.opportunityTitle && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
+                    <span>🎯</span>
+                    <span>
+                      Learning {resultsData.opportunityContext.targetSkill} for{' '}
+                      {resultsData.opportunityContext.opportunityTitle}
+                    </span>
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-slate-400 mt-0.5">
                 Target Level: <span className="text-slate-300 font-medium">{resultsData.level}</span>
                 {goal && <span> • Goal: <span className="text-slate-300 font-medium">{goal}</span></span>}
@@ -370,3 +627,4 @@ export default function LearnView({ onTrackCreated }) {
     </div>
   );
 }
+

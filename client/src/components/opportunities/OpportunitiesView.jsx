@@ -345,7 +345,12 @@ function getExternalButtonText(opp, isCard = false) {
   return opp.isExpired ? 'Visit Official Page (Archive)' : 'Visit Official Page / Apply';
 }
 
-export default function OpportunitiesView({ onNavigateToProfile }) {
+export default function OpportunitiesView({
+  onNavigateToProfile,
+  onStartBridgeSkillGap,
+  initialOpportunityId = null,
+  onClearInitialOpportunity,
+}) {
   const [opportunities, setOpportunities] = useState([]);
   const [explorePlatforms, setExplorePlatforms] = useState([]);
   const [studentContext, setStudentContext] = useState({
@@ -368,6 +373,7 @@ export default function OpportunitiesView({ onNavigateToProfile }) {
   const [skillAnalysis, setSkillAnalysis] = useState(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisError, setAnalysisError] = useState(null);
+  const [selectedBridgeSkill, setSelectedBridgeSkill] = useState('');
   const [showFullAbout, setShowFullAbout] = useState(false);
   const [showSkillDetails, setShowSkillDetails] = useState(false);
   const [showFullEligibility, setShowFullEligibility] = useState(false);
@@ -377,13 +383,16 @@ export default function OpportunitiesView({ onNavigateToProfile }) {
     setError(null);
     try {
       const response = await getOpportunities({ includeExpired: 'true' });
-      setOpportunities(response.opportunities || []);
+      const fetchedList = response.opportunities || [];
+      setOpportunities(fetchedList);
       setExplorePlatforms(response.explorePlatforms || []);
       if (response.studentContext) {
         setStudentContext(response.studentContext);
       }
+      return fetchedList;
     } catch (err) {
       setError(err.message || 'Failed to load verified opportunities.');
+      return [];
     } finally {
       setLoading(false);
     }
@@ -399,6 +408,18 @@ export default function OpportunitiesView({ onNavigateToProfile }) {
       scrollToTop();
     }
   }, [selectedOpportunity?.id, loading, detailLoading]);
+
+  // Synchronize selectedBridgeSkill with latest missingSkills analysis
+  useEffect(() => {
+    const missing = skillAnalysis?.missingSkills || [];
+    if (missing.length > 0) {
+      setSelectedBridgeSkill((prev) =>
+        prev && missing.includes(prev) ? prev : missing[0]
+      );
+    } else {
+      setSelectedBridgeSkill('');
+    }
+  }, [skillAnalysis]);
 
   const handleRunSkillAnalysis = async (opportunityId) => {
     setAnalysisLoading(true);
@@ -416,6 +437,7 @@ export default function OpportunitiesView({ onNavigateToProfile }) {
   };
 
   const handleOpenDetails = async (opp) => {
+    if (!opp || !opp.id) return;
     setSelectedOpportunity(opp);
     setSkillAnalysis(null);
     setAnalysisError(null);
@@ -436,6 +458,13 @@ export default function OpportunitiesView({ onNavigateToProfile }) {
         detailRes.value?.opportunity
       ) {
         setSelectedOpportunity(detailRes.value.opportunity);
+      } else if (detailRes.status === 'rejected') {
+        setSelectedOpportunity(null);
+        setError(
+          detailRes.reason?.message ||
+            'The selected opportunity is no longer available in the database.'
+        );
+        return;
       }
 
       if (analysisRes.status === 'fulfilled' && analysisRes.value) {
@@ -450,6 +479,44 @@ export default function OpportunitiesView({ onNavigateToProfile }) {
       setDetailLoading(false);
       setAnalysisLoading(false);
     }
+  };
+
+  // Automatically open and reanalyze the target opportunity when returning from Learn, My Tracks, or Profile
+  useEffect(() => {
+    if (!initialOpportunityId) return;
+    const targetId = Number(initialOpportunityId);
+    if (!Number.isInteger(targetId) || targetId <= 0) return;
+
+    const existing = opportunities.find((o) => o.id === targetId);
+    handleOpenDetails(
+      existing || {
+        id: targetId,
+        title: 'Loading Opportunity...',
+        organization: '',
+        type: 'Internship',
+        status: 'Open',
+        locationMode: 'Online',
+        requiredSkills: [],
+        suggestedSkills: [],
+        sourceUrl: '#',
+      }
+    );
+  }, [initialOpportunityId]);
+
+  const handleBridgeSkill = (skillToLearn) => {
+    if (!selectedOpportunity || !skillToLearn || !onStartBridgeSkillGap) return;
+    const cleanSkill = String(skillToLearn).trim();
+    if (!cleanSkill) return;
+
+    onStartBridgeSkillGap({
+      opportunityId: selectedOpportunity.id,
+      opportunityTitle: selectedOpportunity.title,
+      organization: selectedOpportunity.organization,
+      opportunityType: selectedOpportunity.type,
+      targetSkill: cleanSkill,
+      sourceUrl: selectedOpportunity.sourceUrl,
+      contextToken: skillAnalysis?.bridgeContextTokens?.[cleanSkill] || null,
+    });
   };
 
   // Filtered opportunities for Explore All and Recommended
@@ -552,6 +619,9 @@ export default function OpportunitiesView({ onNavigateToProfile }) {
               setShowFullAbout(false);
               setShowSkillDetails(false);
               setShowFullEligibility(false);
+              if (typeof onClearInitialOpportunity === 'function') {
+                onClearInitialOpportunity();
+              }
             }}
             className="inline-flex items-center gap-2 text-xs font-medium px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
           >
@@ -889,7 +959,16 @@ export default function OpportunitiesView({ onNavigateToProfile }) {
                 {onNavigateToProfile && (
                   <button
                     type="button"
-                    onClick={onNavigateToProfile}
+                    onClick={() =>
+                      onNavigateToProfile({
+                        opportunityId: opp.id,
+                        opportunityTitle: opp.title,
+                        targetSkill:
+                          selectedBridgeSkill ||
+                          skillAnalysis?.missingSkills?.[0] ||
+                          null,
+                      })
+                    }
                     className="text-xs font-semibold px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
                   >
                     Update Profile Skills
@@ -1004,7 +1083,16 @@ export default function OpportunitiesView({ onNavigateToProfile }) {
                     onNavigateToProfile && (
                       <button
                         type="button"
-                        onClick={onNavigateToProfile}
+                        onClick={() =>
+                          onNavigateToProfile({
+                            opportunityId: opp.id,
+                            opportunityTitle: opp.title,
+                            targetSkill:
+                              selectedBridgeSkill ||
+                              skillAnalysis?.missingSkills?.[0] ||
+                              null,
+                          })
+                        }
                         className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-200 border border-indigo-500/40 shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
                       >
                         Add Skills →
@@ -1137,9 +1225,9 @@ export default function OpportunitiesView({ onNavigateToProfile }) {
                       </div>
                     </div>
 
-                    {/* 3. Skills to Develop Card */}
-                    <div className="p-4 rounded-xl bg-slate-800/75 border border-slate-700 flex flex-col justify-between space-y-3">
-                      <div className="space-y-2">
+                    {/* 3. Skills to Develop Card (with Milestone 7 Bridge My Skill Gap actions) */}
+                    <div className="p-4 rounded-xl bg-slate-800/75 border border-indigo-500/35 flex flex-col justify-between space-y-3">
+                      <div className="space-y-2.5">
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-1.5">
                             <span
@@ -1157,41 +1245,117 @@ export default function OpportunitiesView({ onNavigateToProfile }) {
                           </span>
                         </div>
                         <p className="text-[11px] text-slate-400">
-                          Suggested topics to explore or add to your profile
+                          {missingCount > 0
+                            ? 'Click Learn This Skill on any topic below to bridge your skill gap'
+                            : 'Suggested topics to explore or add to your profile'}
                         </p>
 
                         {missingCount > 0 ? (
                           <div
                             role="list"
                             aria-label="Skills to develop"
-                            className="flex flex-wrap gap-1.5 pt-1"
+                            className="space-y-1.5 pt-1"
                           >
-                            {skillAnalysis.missingSkills.map((skill) => (
-                              <span
-                                role="listitem"
-                                key={skill}
-                                className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-slate-900/90 text-slate-200 border border-slate-600 font-medium"
-                              >
-                                <span
-                                  aria-hidden="true"
-                                  className="text-indigo-300 font-bold"
+                            {skillAnalysis.missingSkills.map((skill) => {
+                              const isSelectedSkill =
+                                selectedBridgeSkill === skill;
+                              return (
+                                <div
+                                  role="listitem"
+                                  key={skill}
+                                  onClick={() => setSelectedBridgeSkill(skill)}
+                                  className={`flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl border transition-colors ${
+                                    isSelectedSkill
+                                      ? 'bg-indigo-950/50 border-indigo-500/50'
+                                      : 'bg-slate-900/90 border-slate-700/80 hover:border-slate-600'
+                                  }`}
                                 >
-                                  +
-                                </span>
-                                <span>{skill}</span>
-                                <span className="sr-only">
-                                  (Status: Suggested skill to develop)
-                                </span>
-                              </span>
-                            ))}
+                                  <span className="inline-flex items-center gap-1.5 text-xs text-slate-100 font-semibold min-w-0 truncate">
+                                    <span
+                                      aria-hidden="true"
+                                      className="text-indigo-300 font-bold"
+                                    >
+                                      +
+                                    </span>
+                                    <span className="truncate">{skill}</span>
+                                    <span className="sr-only">
+                                      (Status: Suggested skill to develop)
+                                    </span>
+                                  </span>
+
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleBridgeSkill(skill);
+                                    }}
+                                    aria-label={`Learn ${skill} for ${opp.title}`}
+                                    className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition-colors shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                                  >
+                                    <span>Learn This Skill</span>
+                                    <span aria-hidden="true">→</span>
+                                  </button>
+                                </div>
+                              );
+                            })}
                           </div>
                         ) : (
                           <p className="text-xs text-emerald-300 font-medium pt-1">
                             ✓ All suggested skills for this opportunity are in
-                            your profile!
+                            your profile — no additional skill gaps identified!
                           </p>
                         )}
                       </div>
+
+                      {missingCount > 0 && (
+                        <div className="pt-2.5 border-t border-slate-700/70 space-y-2">
+                          {missingCount > 1 && (
+                            <div className="flex items-center justify-between gap-2">
+                              <label
+                                htmlFor="bridge-skill-selector"
+                                className="text-[11px] text-slate-300 font-medium"
+                              >
+                                Target skill:
+                              </label>
+                              <select
+                                id="bridge-skill-selector"
+                                value={
+                                  selectedBridgeSkill ||
+                                  skillAnalysis.missingSkills[0]
+                                }
+                                onChange={(e) =>
+                                  setSelectedBridgeSkill(e.target.value)
+                                }
+                                className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                              >
+                                {skillAnalysis.missingSkills.map((s) => (
+                                  <option key={s} value={s}>
+                                    {s}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleBridgeSkill(
+                                selectedBridgeSkill ||
+                                  skillAnalysis.missingSkills[0]
+                              )
+                            }
+                            className="w-full py-2 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                          >
+                            <span>
+                              Bridge My Skill Gap (
+                              {selectedBridgeSkill ||
+                                skillAnalysis.missingSkills[0]}
+                              )
+                            </span>
+                            <span aria-hidden="true">→</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

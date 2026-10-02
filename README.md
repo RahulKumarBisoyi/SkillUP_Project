@@ -273,7 +273,40 @@ SkillUP strictly separates three distinct types of opportunity metadata:
 ### 5. Current Limitations
 - Student profile skills are self-reported (`Knows` / `Learning`) and are not formally verified assessments.
 - Most student hackathons, internships, and competitions publish general focus areas rather than mandatory programming language lock-ins; therefore, technical comparisons represent **Suggested Skill Alignment** rather than mandatory application prerequisites.
-- Direct automated learning-track creation from missing skills (*Bridge My Skill Gap*) belongs to Milestone 7 and is not yet enabled in Milestone 6.
+
+---
+
+## Bridge My Skill Gap Architecture (Milestone 7)
+
+### 1. Overview & Complete User Journey
+Milestone 7 connects Opportunity Discovery & Skill Gap Analysis (Milestones 5 & 6) directly to YouTube Learning Resource Discovery (Milestone 3), Personalized Learning Tracks (Milestone 4), and Student Profile Updates (Milestone 2):
+
+$$\text{Discover Opportunity} \rightarrow \text{Analyze Skills} \rightarrow \text{Identify Skills to Develop} \rightarrow \text{Bridge My Skill Gap} \rightarrow \text{Find Resources} \rightarrow \text{Create My Track} \rightarrow \text{Complete Tasks} \rightarrow \text{Update Profile} \rightarrow \text{Reanalyze Opportunity}$$
+
+1. **Opportunity Details → Bridge My Skill Gap**:
+   - Inside **My Skill Analysis → Skills to Develop**, every missing skill returned by `POST /api/opportunities/:id/analyze` renders a **Learn This Skill →** action button alongside a **Bridge My Skill Gap** selector.
+   - If the student already lists all associated skills (`missingSkills = []`), no redundant gap-bridging buttons are displayed.
+2. **Pre-Populated Resource Discovery (`LearnView`)**:
+   - Clicking **Learn This Skill** or **Bridge My Skill Gap** navigates to **Discover Resources** with a contextual banner (*"Learning [Skill] for [Opportunity Title]"*, **← Return to Opportunity**, and **Official Page ↗**) and pre-populates:
+     - **Topic / Skill**: Exact missing skill from the opportunity (or its canonical predefined catalog match when applicable).
+     - **Level**: Defaults to **`Beginner`** when the student's level for that skill is unknown (never assuming `Intermediate` from related skills), while allowing the student to change the level before searching.
+     - **Learning Goal**: `"Prepare for [Opportunity Title]"`.
+     - **Available Daily Time**: Pre-selected from the student's saved `learning_hours_per_day` in MySQL (editable before searching).
+3. **Backend Opportunity-Skill Validation & Journey Preservation**:
+   - Rather than adding duplicate routes or trusting arbitrary client-supplied free text, `POST /api/learn/recommend`, `POST /api/tracks/generate`, and `POST /api/tracks` validate `{ opportunityId, targetSkill, contextToken }` via `validateOpportunitySkillContext` in [`skillAnalysis.service.js`](file:///c:/Users/rahul/OneDrive/Desktop/Skillup_hackathon/server/src/services/skillAnalysis.service.js):
+     - Verifies that `opportunityId` exists in `opportunities`.
+     - Verifies that `targetSkill` belongs to that opportunity's associated technical skills.
+     - Rejects skills the student already marked as `Knows`, while **preserving the validated learning journey** (via HMAC-signed `contextToken` and session validation) if the student updates the skill from Missing to **`Learning`** after generating a track preview but before saving it.
+     - Rejects forged tokens, non-existent opportunities, and unassociated skills with `400`/`404`.
+4. **Database Migration (`learning_tracks`)**:
+   - `learning_tracks` is migrated idempotently via `npm run db:init` (`migrateLearningTracksOpportunityColumns` in [`initDb.js`](file:///c:/Users/rahul/OneDrive/Desktop/Skillup_hackathon/server/src/database/initDb.js)) to add:
+     - `opportunity_id INT NULL DEFAULT NULL` (with foreign key `ON DELETE SET NULL` referencing `opportunities(id)`)
+     - `target_skill VARCHAR(255) NULL DEFAULT NULL`
+   - Ordinary tracks created outside the Bridge flow store `NULL` for both columns.
+5. **Track Progress, Profile Skill Update & Fresh Opportunity Reanalysis**:
+   - Opportunity-linked tracks in **My Tracks** and **Track Detail** display *"Preparing for: [Opportunity Title]"*, *"Target Skill: [Skill]"*, and a **View Opportunity** button.
+   - Completing all tasks (`100%` / `Completed`) displays next-step actions (**Update My Skills** and **Reanalyze Opportunity**) while explicitly noting that completing a learning track does not automatically prove skill mastery or official eligibility.
+   - **Update My Skills** supports **every** validated opportunity-linked target skill (including skills outside the 9-topic catalog such as `Git`, `Linux`, `C++`, `Java`, `Cloud`, `SQL`, `DBMS`, `DSA`), never auto-marks a skill as `Knows`, and upon saving returns the student to the original opportunity and triggers a fresh `POST /api/opportunities/:id/analyze` call.
 
 ---
 
@@ -327,7 +360,7 @@ GEMINI_MODEL=gemini-3.8-flash
 *(Never commit `.env` to Git. The `.gitignore` rules ensure `.env` remains strictly local.)*
 
 #### Initialize / Migrate Database Schema & Seed Verified Opportunities
-Run the automated schema runner to create `skillup_db`, initialize all tables (`users`, `profiles`, `user_skills`, `learning_tracks`, `track_tasks`, `opportunities`), and idempotently seed the verified opportunities dataset without losing existing data:
+Run the automated schema runner to create `skillup_db`, initialize and migrate all tables (`users`, `profiles`, `user_skills`, `opportunities`, `learning_tracks`, `track_tasks`), and idempotently seed the verified opportunities dataset without losing existing data:
 ```bash
 npm run db:init
 ```
@@ -348,23 +381,25 @@ The backend server runs on `http://localhost:5000`.
 # Health check
 curl http://localhost:5000/api/health
 
-# Generate a Learning Track Preview (Protected)
+# Analyze Student Skills Against Opportunity #1 (Protected - Milestone 6 & 7)
+curl -X POST http://localhost:5000/api/opportunities/1/analyze \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <your_jwt_token>"
+
+# Discover Resources for a Validated Opportunity Missing Skill (Protected - Milestone 7)
+curl -X POST http://localhost:5000/api/learn/recommend \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <your_jwt_token>" \
+  -d '{"topic":"Git","level":"Beginner","goal":"Prepare for Smart India Hackathon (SIH)","availableTime":"2 hours/day","opportunityId":1,"targetSkill":"Git"}'
+
+# Generate an Opportunity-Linked Track Preview (Protected - Milestone 7)
 curl -X POST http://localhost:5000/api/tracks/generate \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <your_jwt_token>" \
-  -d '{"videoId":"-TkoO8Z07hI","topic":"DSA in C++","level":"Beginner","goal":"Placement preparation","availableTime":"1 hour/day"}'
+  -d '{"videoId":"-TkoO8Z07hI","topic":"DSA in C++","level":"Beginner","goal":"Prepare for ICPC","availableTime":"1 hour/day","opportunityId":7,"targetSkill":"C++"}'
 
-# List Saved Learning Tracks (Protected)
+# List Saved Learning Tracks with Opportunity Context (Protected)
 curl http://localhost:5000/api/tracks \
-  -H "Authorization: Bearer <your_jwt_token>"
-
-# List Verified Opportunities & Personalized Recommendations (Protected)
-curl "http://localhost:5000/api/opportunities?type=Hackathon" \
-  -H "Authorization: Bearer <your_jwt_token>"
-
-# Analyze Student Skills Against Opportunity #1 (Protected - Milestone 6)
-curl -X POST http://localhost:5000/api/opportunities/1/analyze \
-  -H "Content-Type: application/json" \
   -H "Authorization: Bearer <your_jwt_token>"
 ```
 
@@ -439,6 +474,12 @@ The React frontend starts on `http://localhost:5173`.
   - Three-category classification (**Known Skills**, **Currently Learning**, **Skills to Develop**) with plain-language explanations
   - Strict separation between **Official Eligibility**, **Official Focus Areas**, and **Suggested Skill Alignment**
   - Integrated **My Skill Analysis** and **Official Eligibility** UI sections in `OpportunitiesView.jsx`
-- [ ] **Milestone 7**: Bridge My Skill Gap *(upcoming)*
+- [x] **Milestone 7: Bridge My Skill Gap**
+  - **Learn This Skill** and **Bridge My Skill Gap** actions in Opportunity Details reusing Milestone 6 `missingSkills`
+  - Pre-populated **Discover Resources** view with opportunity context banner, default `Beginner` level, `"Prepare for [Opportunity Title]"` goal, and profile-derived daily time
+  - Backend opportunity-skill validation (`validateOpportunitySkillContext`) supporting both predefined catalog topics and non-catalog opportunity skills (`Git`, `Linux`, `C++`, `SQL`, etc.) while preserving validated journeys across `Missing → Learning` updates
+  - Safe MySQL schema migration adding `opportunity_id` (`ON DELETE SET NULL`) and `target_skill` to `learning_tracks`
+  - Opportunity context in **Track Preview**, **My Tracks**, and **Track Detail**, plus **Update My Skills** and **Reanalyze Opportunity** completion workflow
+
 
 

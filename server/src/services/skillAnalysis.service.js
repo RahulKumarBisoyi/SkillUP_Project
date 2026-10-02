@@ -1,8 +1,11 @@
+import crypto from 'crypto';
+
 /**
- * Deterministic Skill Matching and Gap Analysis Service (Milestone 6)
+ * Deterministic Skill Matching and Gap Analysis Service (Milestone 6 & 7)
  *
  * Compares a student's latest saved profile skills (`Knows` / `Learning`) against
- * an opportunity's associated technical skills.
+ * an opportunity's associated technical skills, and provides secure validation
+ * for the Milestone 7 Bridge My Skill Gap learning journey.
  *
  * Key Guarantees:
  * 1. Purely deterministic, case-insensitive, whitespace-normalized comparison.
@@ -18,6 +21,26 @@
  * 5. Never declares a student officially eligible even when all associated skills match,
  *    and never produces arbitrary numerical match scores.
  */
+
+export const PREDEFINED_LEARNING_TOPICS = [
+  'DSA in C++',
+  'DSA in Java',
+  'Python',
+  'JavaScript',
+  'React',
+  'Web Development',
+  'SQL & DBMS',
+  'Machine Learning',
+  'Operating Systems',
+];
+
+const BRIDGE_JOURNEY_TTL_MS = 2 * 60 * 60 * 1000; // 2 hours
+const validatedBridgeJourneys = new Map();
+
+function getBridgeHmacSecret() {
+  return process.env.JWT_SECRET || 'skillup_milestone7_bridge_context_secret';
+}
+
 
 const STRICT_ALIAS_TO_CANONICAL = new Map([
   // JavaScript
@@ -547,6 +570,7 @@ export function analyzeStudentSkillsForOpportunity({
   opportunity,
   userSkills = [],
   profile = null,
+  userId = null,
 }) {
   // Build lookup maps of the student's canonical skills -> status & original label
   const studentKnowsMap = new Map();
@@ -653,6 +677,20 @@ export function analyzeStudentSkillsForOpportunity({
     knownSkills
   );
 
+  // If userId is supplied, record validated missing skills for Bridge My Skill Gap
+  // and issue signed context tokens for each missing skill.
+  const bridgeContextTokens = {};
+  if (userId && opportunity?.id) {
+    for (const mSkill of missingSkills) {
+      recordValidatedBridgeSkill(userId, opportunity.id, mSkill);
+      bridgeContextTokens[mSkill] = createBridgeContextToken({
+        userId,
+        opportunityId: opportunity.id,
+        targetSkill: mSkill,
+      });
+    }
+  }
+
   return {
     opportunityId: opportunity.id,
     opportunityTitle: opportunity.title,
@@ -671,5 +709,297 @@ export function analyzeStudentSkillsForOpportunity({
     summary,
     conciseSummary,
     officialEligibility,
+    bridgeContextTokens,
   };
 }
+
+/**
+ * Check if a topic matches one of the 9 predefined Milestone 3 learning topics.
+ * Returns the exact predefined title if matched, or null otherwise.
+ */
+export function findPredefinedTopicMatch(rawTopic) {
+  const clean = String(rawTopic || '').trim().toLowerCase();
+  if (!clean) return null;
+  for (const title of PREDEFINED_LEARNING_TOPICS) {
+    if (title.toLowerCase() === clean) {
+      return title;
+    }
+  }
+  return null;
+}
+
+/**
+ * Create an HMAC-SHA256 signed token binding a validated Bridge My Skill Gap context
+ * to the authenticated student, opportunity ID, and canonical target skill.
+ */
+export function createBridgeContextToken({ userId, opportunityId, targetSkill }) {
+  const canonicalSkill = getCanonicalSkillKey(targetSkill);
+  const exp = Date.now() + BRIDGE_JOURNEY_TTL_MS;
+  const payload = JSON.stringify({
+    u: Number(userId),
+    o: Number(opportunityId),
+    s: canonicalSkill,
+    l: String(targetSkill || '').trim(),
+    e: exp,
+  });
+  const encoded = Buffer.from(payload, 'utf8').toString('base64url');
+  const sig = crypto
+    .createHmac('sha256', getBridgeHmacSecret())
+    .update(encoded)
+    .digest('base64url');
+  return `${encoded}.${sig}`;
+}
+
+/**
+ * Verify an HMAC-SHA256 signed Bridge My Skill Gap context token.
+ */
+export function verifyBridgeContextToken(token, { userId, opportunityId, targetSkill }) {
+  if (!token || typeof token !== 'string' || !token.includes('.')) {
+    return false;
+  }
+  const [encoded, sig] = token.split('.');
+  if (!encoded || !sig) return false;
+
+  const expectedSig = crypto
+    .createHmac('sha256', getBridgeHmacSecret())
+    .update(encoded)
+    .digest('base64url');
+
+  const sigBuf = Buffer.from(sig, 'utf8');
+  const expectedBuf = Buffer.from(expectedSig, 'utf8');
+  if (sigBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(sigBuf, expectedBuf)) {
+    return false;
+  }
+
+  try {
+    const parsed = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'));
+    if (!parsed || typeof parsed !== 'object') return false;
+    if (Number(parsed.e) < Date.now()) return false;
+    if (Number(parsed.u) !== Number(userId)) return false;
+    if (Number(parsed.o) !== Number(opportunityId)) return false;
+    if (parsed.s !== getCanonicalSkillKey(targetSkill)) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Record in server memory that (userId, opportunityId, targetSkill) was validated
+ * as a missing skill (Skill to Develop) during the student's active session.
+ */
+export function recordValidatedBridgeSkill(userId, opportunityId, targetSkill) {
+  const canonicalSkill = getCanonicalSkillKey(targetSkill);
+  if (!userId || !opportunityId || !canonicalSkill) return;
+  const key = `${Number(userId)}::${Number(opportunityId)}::${canonicalSkill}`;
+  validatedBridgeJourneys.set(key, {
+    timestamp: Date.now(),
+    canonicalLabel: String(targetSkill || '').trim(),
+  });
+}
+
+/**
+ * Check whether (userId, opportunityId, targetSkill) was previously validated
+ * as a missing skill in the student's active Bridge My Skill Gap journey.
+ */
+export function hasValidatedBridgeJourney(userId, opportunityId, targetSkill) {
+  const canonicalSkill = getCanonicalSkillKey(targetSkill);
+  if (!userId || !opportunityId || !canonicalSkill) return false;
+  const key = `${Number(userId)}::${Number(opportunityId)}::${canonicalSkill}`;
+  const entry = validatedBridgeJourneys.get(key);
+  if (!entry) return false;
+  if (Date.now() - entry.timestamp > BRIDGE_JOURNEY_TTL_MS) {
+    validatedBridgeJourneys.delete(key);
+    return false;
+  }
+  return true;
+}
+
+function parseJsonStringArray(val) {
+  if (Array.isArray(val)) {
+    return val.map((item) => String(item).trim()).filter(Boolean);
+  }
+  if (typeof val === 'string' && val.trim()) {
+    try {
+      const parsed = JSON.parse(val);
+      if (Array.isArray(parsed)) {
+        return parsed.map((item) => String(item).trim()).filter(Boolean);
+      }
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+/**
+ * Validate optional opportunity context (`opportunityId` and `targetSkill`) against
+ * the MySQL database and the authenticated student's latest saved profile skills.
+ *
+ * Rules enforced:
+ * 1. `opportunityId` must be a valid positive integer and exist in `opportunities`.
+ * 2. `targetSkill` must be a non-empty string belonging to the opportunity's technical skills.
+ * 3. `targetSkill` must currently appear in the opportunity's `missingSkills` (Skills to Develop)
+ *    for this student — OR, if the student updated their profile skill from Missing to Learning
+ *    after starting a validated Bridge My Skill Gap journey (verified via `contextToken` or
+ *    `hasValidatedBridgeJourney`), the validated journey is preserved!
+ * 4. Forged/arbitrary opportunity IDs, skills not belonging to the opportunity, skills already
+ *    marked as `Knows`, or `Learning` skills without a prior validated Bridge journey are rejected.
+ */
+export async function validateOpportunitySkillContext({
+  pool,
+  userId,
+  opportunityId,
+  targetSkill,
+  contextToken = null,
+}) {
+  const parsedOppId =
+    typeof opportunityId === 'number'
+      ? opportunityId
+      : typeof opportunityId === 'string' && /^\d+$/.test(opportunityId.trim())
+      ? Number.parseInt(opportunityId.trim(), 10)
+      : NaN;
+
+  if (!Number.isInteger(parsedOppId) || parsedOppId <= 0) {
+    return {
+      valid: false,
+      statusCode: 400,
+      message: 'Invalid opportunity ID. Opportunity ID must be a positive integer.',
+    };
+  }
+
+  const rawTargetSkill = typeof targetSkill === 'string' ? targetSkill.trim() : '';
+  if (!rawTargetSkill || rawTargetSkill.length > 200) {
+    return {
+      valid: false,
+      statusCode: 400,
+      message: 'A valid target skill is required when linking to an opportunity.',
+    };
+  }
+
+  const [[oppRows], [profileRows], [skillRows]] = await Promise.all([
+    pool.query('SELECT * FROM opportunities WHERE id = ? LIMIT 1', [parsedOppId]),
+    pool.query(
+      'SELECT branch, college_year, interests, career_goals, learning_hours_per_day FROM profiles WHERE user_id = ? LIMIT 1',
+      [userId]
+    ),
+    pool.query('SELECT skill, status FROM user_skills WHERE user_id = ?', [userId]),
+  ]);
+
+  if (!oppRows || oppRows.length === 0) {
+    return {
+      valid: false,
+      statusCode: 404,
+      message: 'The selected opportunity is no longer available in the database.',
+    };
+  }
+
+  const row = oppRows[0];
+  const opportunity = {
+    id: row.id,
+    editionSlug: row.edition_slug,
+    title: row.title,
+    type: row.type,
+    organization: row.organization,
+    description: row.description,
+    deadline: row.deadline,
+    startDate: row.start_date,
+    locationMode: row.location_mode || 'Online',
+    officialEligibility: row.official_eligibility,
+    requiredSkills: parseJsonStringArray(row.required_skills),
+    suggestedSkills: parseJsonStringArray(row.suggested_skills),
+    sourceUrl: row.source_url,
+    status: row.status,
+  };
+
+  const analysis = analyzeStudentSkillsForOpportunity({
+    opportunity,
+    userSkills: skillRows || [],
+    profile: profileRows[0] || null,
+    userId,
+  });
+
+  // 1. Check if targetSkill is currently in Skills to Develop (missingSkills)
+  const matchedMissingSkill = analysis.missingSkills.find((s) =>
+    areSkillsEquivalent(s, rawTargetSkill)
+  );
+
+  if (matchedMissingSkill) {
+    recordValidatedBridgeSkill(userId, parsedOppId, matchedMissingSkill);
+    const issuedToken = createBridgeContextToken({
+      userId,
+      opportunityId: parsedOppId,
+      targetSkill: matchedMissingSkill,
+    });
+
+    return {
+      valid: true,
+      opportunity,
+      normalizedTargetSkill: matchedMissingSkill,
+      contextToken: issuedToken,
+      analysis,
+    };
+  }
+
+  // 2. Adjustment 1: Check if the student updated the skill from Missing to Learning
+  // during an already-validated Bridge My Skill Gap journey
+  const matchedLearningSkill = analysis.learningSkills.find((s) =>
+    areSkillsEquivalent(s, rawTargetSkill)
+  );
+
+  if (matchedLearningSkill) {
+    const tokenValid = verifyBridgeContextToken(contextToken, {
+      userId,
+      opportunityId: parsedOppId,
+      targetSkill: matchedLearningSkill,
+    });
+    const sessionJourneyValid = hasValidatedBridgeJourney(
+      userId,
+      parsedOppId,
+      matchedLearningSkill
+    );
+
+    if (tokenValid || sessionJourneyValid) {
+      const issuedToken = createBridgeContextToken({
+        userId,
+        opportunityId: parsedOppId,
+        targetSkill: matchedLearningSkill,
+      });
+
+      return {
+        valid: true,
+        opportunity,
+        normalizedTargetSkill: matchedLearningSkill,
+        contextToken: issuedToken,
+        analysis,
+        preservedFromLearningTransition: true,
+      };
+    }
+
+    return {
+      valid: false,
+      statusCode: 400,
+      message: `Skill "${matchedLearningSkill}" is already marked as Learning in your profile and is not in Skills to Develop for "${opportunity.title}".`,
+    };
+  }
+
+  // 3. Check if the skill is already marked as Knows
+  const matchedKnownSkill = analysis.knownSkills.find((s) =>
+    areSkillsEquivalent(s, rawTargetSkill)
+  );
+  if (matchedKnownSkill) {
+    return {
+      valid: false,
+      statusCode: 400,
+      message: `Skill "${matchedKnownSkill}" is already marked as Knows in your profile and is not in Skills to Develop for "${opportunity.title}".`,
+    };
+  }
+
+  // 4. Otherwise, the skill is not associated with this opportunity at all
+  return {
+    valid: false,
+    statusCode: 400,
+    message: `Skill "${rawTargetSkill}" is not a valid Skill to Develop for "${opportunity.title}".`,
+  };
+}
+

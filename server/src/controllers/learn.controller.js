@@ -1,14 +1,30 @@
+import pool from '../config/db.js';
 import { searchYouTubeVideos } from '../services/youtube.service.js';
 import { rankAndExplainResources } from '../services/gemini.service.js';
+import {
+  areSkillsEquivalent,
+  findPredefinedTopicMatch,
+  validateOpportunitySkillContext,
+} from '../services/skillAnalysis.service.js';
 
 /**
  * POST /api/learn/recommend
  * Discover and rank real YouTube learning resources tailored to the student.
  * Filters strictly for long-form educational content (no Shorts, duration >= 8 mins).
+ * Supports both predefined catalog topics and backend-validated opportunity skills (Milestone 7).
  */
 export async function getRecommendations(req, res, next) {
   try {
-    const { topic, level, goal, availableTime } = req.body;
+    const userId = req.user.id;
+    const {
+      topic,
+      level,
+      goal,
+      availableTime,
+      opportunityId,
+      targetSkill,
+      contextToken,
+    } = req.body;
 
     // Validate topic (required)
     if (!topic || typeof topic !== 'string' || !topic.trim()) {
@@ -25,8 +41,69 @@ export async function getRecommendations(req, res, next) {
       });
     }
 
-    // Sanitize optional fields
-    const sanitizedTopic = topic.trim();
+    const rawTopic = topic.trim();
+    const hasOpportunityContext =
+      (opportunityId !== undefined && opportunityId !== null && opportunityId !== '') ||
+      (targetSkill !== undefined && targetSkill !== null && String(targetSkill).trim() !== '');
+
+    let sanitizedTopic = rawTopic;
+    let validatedOpportunityContext = null;
+
+    if (hasOpportunityContext) {
+      const skillToValidate =
+        typeof targetSkill === 'string' && targetSkill.trim()
+          ? targetSkill.trim()
+          : rawTopic;
+
+      const ctxValidation = await validateOpportunitySkillContext({
+        pool,
+        userId,
+        opportunityId,
+        targetSkill: skillToValidate,
+        contextToken,
+      });
+
+      if (!ctxValidation.valid) {
+        return res.status(ctxValidation.statusCode || 400).json({
+          status: 'error',
+          message: ctxValidation.message,
+        });
+      }
+
+      // Ensure topic matches either the validated target skill or a predefined catalog topic
+      const predefinedMatch = findPredefinedTopicMatch(rawTopic);
+      if (areSkillsEquivalent(rawTopic, ctxValidation.normalizedTargetSkill)) {
+        sanitizedTopic = predefinedMatch || ctxValidation.normalizedTargetSkill;
+      } else if (predefinedMatch) {
+        sanitizedTopic = predefinedMatch;
+      } else {
+        return res.status(400).json({
+          status: 'error',
+          message: `Topic "${rawTopic}" does not match the validated target skill "${ctxValidation.normalizedTargetSkill}".`,
+        });
+      }
+
+      validatedOpportunityContext = {
+        opportunityId: ctxValidation.opportunity.id,
+        opportunityTitle: ctxValidation.opportunity.title,
+        organization: ctxValidation.opportunity.organization,
+        targetSkill: ctxValidation.normalizedTargetSkill,
+        sourceUrl: ctxValidation.opportunity.sourceUrl,
+        contextToken: ctxValidation.contextToken,
+      };
+    } else {
+      // Ordinary Learn journey: enforce predefined learning topic catalog (no unrestricted free-text)
+      const predefinedMatch = findPredefinedTopicMatch(rawTopic);
+      if (!predefinedMatch) {
+        return res.status(400).json({
+          status: 'error',
+          message:
+            'Unsupported learning topic. Please select a topic from the predefined catalog or start from an opportunity’s Skills to Develop.',
+        });
+      }
+      sanitizedTopic = predefinedMatch;
+    }
+
     const sanitizedLevel =
       level && typeof level === 'string' && ['Beginner', 'Intermediate', 'Advanced'].includes(level.trim())
         ? level.trim()
@@ -55,6 +132,7 @@ export async function getRecommendations(req, res, next) {
         topic: sanitizedTopic,
         level: sanitizedLevel,
         aiPersonalized: false,
+        opportunityContext: validatedOpportunityContext,
         resources: [],
       });
     }
@@ -104,6 +182,7 @@ export async function getRecommendations(req, res, next) {
       topic: sanitizedTopic,
       level: sanitizedLevel,
       aiPersonalized,
+      opportunityContext: validatedOpportunityContext,
       resources: limitedResources,
     });
   } catch (error) {
@@ -114,3 +193,4 @@ export async function getRecommendations(req, res, next) {
 export default {
   getRecommendations,
 };
+

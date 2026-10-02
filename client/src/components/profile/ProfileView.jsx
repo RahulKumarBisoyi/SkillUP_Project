@@ -3,7 +3,11 @@ import { useAuth } from '../../context/AuthContext';
 import * as api from '../../services/api';
 import { scrollToTop } from '../../utils/scroll';
 
-export default function ProfileView({ onSaveSuccess }) {
+export default function ProfileView({
+  onSaveSuccess,
+  bridgeProfileContext = null,
+  onReturnToOpportunity = null,
+}) {
   const { user } = useAuth();
 
   const [loading, setLoading] = useState(true);
@@ -36,8 +40,18 @@ export default function ProfileView({ onSaveSuccess }) {
         setCareerGoals(res.profile.career_goals || '');
         setLearningHoursPerDay(res.profile.learning_hours_per_day ?? 2);
       }
-      if (res && Array.isArray(res.skills)) {
-        setSkills(res.skills);
+      const loadedSkills = res && Array.isArray(res.skills) ? res.skills : [];
+      setSkills(loadedSkills);
+
+      if (bridgeProfileContext?.targetSkill) {
+        const target = String(bridgeProfileContext.targetSkill).trim();
+        const exists = loadedSkills.some(
+          (s) => s.skill.toLowerCase() === target.toLowerCase()
+        );
+        if (!exists && target) {
+          setNewSkillName(target);
+          setNewSkillStatus('Learning');
+        }
       }
     } catch (err) {
       setError(err.message || 'Failed to load profile data.');
@@ -48,13 +62,36 @@ export default function ProfileView({ onSaveSuccess }) {
 
   useEffect(() => {
     loadProfile();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bridgeProfileContext?.targetSkill]);
 
   useEffect(() => {
     if (!loading) {
       scrollToTop();
     }
   }, [loading]);
+
+  // Stage targetSkill from Bridge My Skill Gap with explicit student action (never auto-saved)
+  const handleStageTargetSkill = (desiredStatus) => {
+    const target = String(bridgeProfileContext?.targetSkill || '').trim();
+    if (!target) return;
+
+    const existingIndex = skills.findIndex(
+      (s) => s.skill.toLowerCase() === target.toLowerCase()
+    );
+    if (existingIndex >= 0) {
+      const updated = skills.map((s, idx) =>
+        idx === existingIndex ? { ...s, status: desiredStatus } : s
+      );
+      setSkills(updated);
+    } else {
+      setSkills([...skills, { skill: target, status: desiredStatus }]);
+      if (newSkillName.trim().toLowerCase() === target.toLowerCase()) {
+        setNewSkillName('');
+      }
+    }
+    setError(null);
+  };
 
   // Skill management
   const handleAddSkill = (e) => {
@@ -133,8 +170,104 @@ export default function ProfileView({ onSaveSuccess }) {
     );
   }
 
+  const targetSkillEntry = bridgeProfileContext?.targetSkill
+    ? skills.find(
+        (s) =>
+          s.skill.toLowerCase() ===
+          String(bridgeProfileContext.targetSkill).trim().toLowerCase()
+      )
+    : null;
+
   return (
     <div className="w-full max-w-3xl mx-auto p-6 sm:p-8 bg-slate-800/90 rounded-2xl border border-slate-700/80 shadow-2xl backdrop-blur-sm">
+      {/* Bridge My Skill Gap Context Banner */}
+      {bridgeProfileContext && (bridgeProfileContext.opportunityId || bridgeProfileContext.targetSkill) && (
+        <div className="mb-6 p-4 sm:p-5 rounded-2xl bg-indigo-950/50 border border-indigo-500/40 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                  Bridge My Skill Gap
+                </span>
+                {bridgeProfileContext.targetSkill && (
+                  <span className="text-xs font-semibold text-emerald-300">
+                    Target Skill: {bridgeProfileContext.targetSkill}
+                  </span>
+                )}
+              </div>
+              {bridgeProfileContext.opportunityTitle && (
+                <p className="text-sm font-bold text-white">
+                  Updating skills for:{' '}
+                  <span className="text-indigo-300">{bridgeProfileContext.opportunityTitle}</span>
+                </p>
+              )}
+              <p className="text-xs text-slate-300">
+                Saving your profile below will update MySQL and automatically return you to this
+                opportunity with a refreshed skill gap analysis.
+              </p>
+            </div>
+
+            {bridgeProfileContext.opportunityId && onReturnToOpportunity && (
+              <button
+                type="button"
+                onClick={() => onReturnToOpportunity(bridgeProfileContext.opportunityId)}
+                className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-semibold text-slate-200 transition-colors cursor-pointer self-start sm:self-center shrink-0"
+              >
+                ← Return to Opportunity
+              </button>
+            )}
+          </div>
+
+          {bridgeProfileContext.targetSkill && (
+            <div className="pt-3 border-t border-indigo-500/25 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="text-xs text-slate-300">
+                Current staged status for{' '}
+                <strong className="text-white">{bridgeProfileContext.targetSkill}</strong>:{' '}
+                {targetSkillEntry ? (
+                  <span
+                    className={`font-bold px-2 py-0.5 rounded border ${
+                      targetSkillEntry.status === 'Knows'
+                        ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                        : 'bg-sky-500/15 text-sky-300 border-sky-500/30'
+                    }`}
+                  >
+                    {targetSkillEntry.status}
+                  </span>
+                ) : (
+                  <span className="font-semibold text-amber-300">
+                    Not yet in your skills list
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleStageTargetSkill('Learning')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
+                    targetSkillEntry?.status === 'Learning'
+                      ? 'bg-sky-500/25 border-sky-400 text-sky-200'
+                      : 'bg-slate-800 hover:bg-slate-700 border-slate-600 text-sky-300'
+                  }`}
+                >
+                  Mark &ldquo;{bridgeProfileContext.targetSkill}&rdquo; as Learning
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleStageTargetSkill('Knows')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
+                    targetSkillEntry?.status === 'Knows'
+                      ? 'bg-emerald-500/25 border-emerald-400 text-emerald-200'
+                      : 'bg-slate-800 hover:bg-slate-700 border-slate-600 text-emerald-300'
+                  }`}
+                >
+                  Mark &ldquo;{bridgeProfileContext.targetSkill}&rdquo; as Knows
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Student Welcome Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 mb-6 border-b border-slate-700/80 gap-4">
         <div>

@@ -4,6 +4,11 @@ import {
   generateTrackSchedule,
   parseDailyBudgetMinutes,
 } from '../services/gemini.service.js';
+import {
+  areSkillsEquivalent,
+  findPredefinedTopicMatch,
+  validateOpportunitySkillContext,
+} from '../services/skillAnalysis.service.js';
 
 const ALLOWED_LEVELS = new Set(['Beginner', 'Intermediate', 'Advanced']);
 const ALLOWED_TASK_TYPES = new Set(['Watch', 'Practice', 'Revision']);
@@ -119,11 +124,21 @@ function validateConfirmedTasks(tasks, dailyBudgetMinutes) {
 /**
  * POST /api/tracks/generate
  * Generate a personalized learning track preview without saving to MySQL.
+ * Supports optional, backend-validated opportunity context (Milestone 7).
  */
 export async function generateTrackPreview(req, res, next) {
   try {
     const userId = req.user.id;
-    const { videoId, topic, level, goal, availableTime } = req.body;
+    const {
+      videoId,
+      topic,
+      level,
+      goal,
+      availableTime,
+      opportunityId,
+      targetSkill,
+      contextToken,
+    } = req.body;
 
     if (!videoId || typeof videoId !== 'string' || !videoId.trim()) {
       return res.status(400).json({
@@ -139,15 +154,78 @@ export async function generateTrackPreview(req, res, next) {
       });
     }
 
-    const sanitizedTopic = topic.trim();
+    const rawTopic = topic.trim();
+    const hasOpportunityContext =
+      (opportunityId !== undefined && opportunityId !== null && opportunityId !== '') ||
+      (targetSkill !== undefined && targetSkill !== null && String(targetSkill).trim() !== '');
+
+    let sanitizedTopic = rawTopic;
+    let validatedOpportunity = null;
+    let normalizedTargetSkill = null;
+    let issuedContextToken = null;
+
+    if (hasOpportunityContext) {
+      const skillToValidate =
+        typeof targetSkill === 'string' && targetSkill.trim()
+          ? targetSkill.trim()
+          : rawTopic;
+
+      const ctxValidation = await validateOpportunitySkillContext({
+        pool,
+        userId,
+        opportunityId,
+        targetSkill: skillToValidate,
+        contextToken,
+      });
+
+      if (!ctxValidation.valid) {
+        return res.status(ctxValidation.statusCode || 400).json({
+          status: 'error',
+          message: ctxValidation.message,
+        });
+      }
+
+      const predefinedMatch = findPredefinedTopicMatch(rawTopic);
+      if (areSkillsEquivalent(rawTopic, ctxValidation.normalizedTargetSkill)) {
+        sanitizedTopic = predefinedMatch || ctxValidation.normalizedTargetSkill;
+      } else if (predefinedMatch) {
+        sanitizedTopic = predefinedMatch;
+      } else {
+        return res.status(400).json({
+          status: 'error',
+          message: `Topic "${rawTopic}" does not match the validated target skill "${ctxValidation.normalizedTargetSkill}".`,
+        });
+      }
+
+      validatedOpportunity = ctxValidation.opportunity;
+      normalizedTargetSkill = ctxValidation.normalizedTargetSkill;
+      issuedContextToken = ctxValidation.contextToken;
+    } else {
+      const predefinedMatch = findPredefinedTopicMatch(rawTopic);
+      if (!predefinedMatch) {
+        return res.status(400).json({
+          status: 'error',
+          message:
+            'Unsupported learning topic. Please select a topic from the predefined catalog or start from an opportunity’s Skills to Develop.',
+        });
+      }
+      sanitizedTopic = predefinedMatch;
+    }
+
     const sanitizedLevel =
       level && typeof level === 'string' && ALLOWED_LEVELS.has(level.trim())
         ? level.trim()
         : 'Beginner';
     const sanitizedGoal =
-      goal && typeof goal === 'string' ? goal.trim().slice(0, 500) : 'General learning';
+      goal && typeof goal === 'string' && goal.trim()
+        ? goal.trim().slice(0, 500)
+        : validatedOpportunity
+        ? `Prepare for ${validatedOpportunity.title}`
+        : 'General learning';
     const sanitizedTime =
-      availableTime && typeof availableTime === 'string' ? availableTime.trim().slice(0, 100) : '1 hour/day';
+      availableTime && typeof availableTime === 'string' && availableTime.trim()
+        ? availableTime.trim().slice(0, 100)
+        : '1 hour/day';
 
     // 1. Verify YouTube resource metadata authoritatively from YouTube service
     let verifiedResource;
@@ -200,6 +278,13 @@ export async function generateTrackPreview(req, res, next) {
         aiGenerated,
         resource: verifiedResource,
         tasks,
+        opportunityId: validatedOpportunity ? validatedOpportunity.id : null,
+        targetSkill: normalizedTargetSkill || null,
+        opportunityTitle: validatedOpportunity ? validatedOpportunity.title : null,
+        opportunityOrganization: validatedOpportunity ? validatedOpportunity.organization : null,
+        opportunityType: validatedOpportunity ? validatedOpportunity.type : null,
+        opportunitySourceUrl: validatedOpportunity ? validatedOpportunity.sourceUrl : null,
+        contextToken: issuedContextToken || null,
       },
     });
   } catch (error) {
@@ -210,12 +295,24 @@ export async function generateTrackPreview(req, res, next) {
 /**
  * POST /api/tracks
  * Save a confirmed learning track and its tasks to MySQL inside a transaction.
+ * Supports optional, backend-validated opportunity context (Milestone 7).
  */
 export async function createTrack(req, res, next) {
   let connection;
   try {
     const userId = req.user.id;
-    const { videoId, topic, level, goal, availableTime, aiGenerated, tasks } = req.body;
+    const {
+      videoId,
+      topic,
+      level,
+      goal,
+      availableTime,
+      aiGenerated,
+      tasks,
+      opportunityId,
+      targetSkill,
+      contextToken,
+    } = req.body;
 
     if (!videoId || typeof videoId !== 'string' || !videoId.trim()) {
       return res.status(400).json({
@@ -231,7 +328,62 @@ export async function createTrack(req, res, next) {
       });
     }
 
-    const sanitizedTopic = topic.trim();
+    const rawTopic = topic.trim();
+    const hasOpportunityContext =
+      (opportunityId !== undefined && opportunityId !== null && opportunityId !== '') ||
+      (targetSkill !== undefined && targetSkill !== null && String(targetSkill).trim() !== '');
+
+    let sanitizedTopic = rawTopic;
+    let validatedOpportunityId = null;
+    let validatedTargetSkill = null;
+
+    if (hasOpportunityContext) {
+      const skillToValidate =
+        typeof targetSkill === 'string' && targetSkill.trim()
+          ? targetSkill.trim()
+          : rawTopic;
+
+      const ctxValidation = await validateOpportunitySkillContext({
+        pool,
+        userId,
+        opportunityId,
+        targetSkill: skillToValidate,
+        contextToken,
+      });
+
+      if (!ctxValidation.valid) {
+        return res.status(ctxValidation.statusCode || 400).json({
+          status: 'error',
+          message: ctxValidation.message,
+        });
+      }
+
+      const predefinedMatch = findPredefinedTopicMatch(rawTopic);
+      if (areSkillsEquivalent(rawTopic, ctxValidation.normalizedTargetSkill)) {
+        sanitizedTopic = predefinedMatch || ctxValidation.normalizedTargetSkill;
+      } else if (predefinedMatch) {
+        sanitizedTopic = predefinedMatch;
+      } else {
+        return res.status(400).json({
+          status: 'error',
+          message: `Topic "${rawTopic}" does not match the validated target skill "${ctxValidation.normalizedTargetSkill}".`,
+        });
+      }
+
+      validatedOpportunityId = ctxValidation.opportunity.id;
+      validatedTargetSkill = ctxValidation.normalizedTargetSkill;
+    } else {
+      const predefinedMatch = findPredefinedTopicMatch(rawTopic);
+      if (!predefinedMatch) {
+        return res.status(400).json({
+          status: 'error',
+          message:
+            'Unsupported learning topic. Please select a topic from the predefined catalog or start from an opportunity’s Skills to Develop.',
+        });
+      }
+      sanitizedTopic = predefinedMatch;
+    }
+
     const sanitizedLevel =
       level && typeof level === 'string' && ALLOWED_LEVELS.has(level.trim())
         ? level.trim()
@@ -283,13 +435,15 @@ export async function createTrack(req, res, next) {
 
     const [trackResult] = await connection.query(
       `INSERT INTO learning_tracks (
-        user_id, topic, learning_goal, level, available_time,
+        user_id, opportunity_id, target_skill, topic, learning_goal, level, available_time,
         resource_video_id, resource_title, resource_channel,
         resource_url, resource_thumbnail, resource_duration,
         ai_generated, start_date, status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), 'Active')`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), 'Active')`,
       [
         userId,
+        validatedOpportunityId,
+        validatedTargetSkill,
         sanitizedTopic,
         sanitizedGoal,
         sanitizedLevel,
@@ -332,6 +486,8 @@ export async function createTrack(req, res, next) {
       status: 'ok',
       message: 'Learning track saved successfully.',
       trackId,
+      opportunityId: validatedOpportunityId,
+      targetSkill: validatedTargetSkill,
     });
   } catch (error) {
     if (connection) {
@@ -347,7 +503,8 @@ export async function createTrack(req, res, next) {
 
 /**
  * GET /api/tracks
- * Return all saved learning tracks belonging to the authenticated student.
+ * Return all saved learning tracks belonging to the authenticated student,
+ * including optional linked opportunity metadata (Milestone 7).
  */
 export async function getUserTracks(req, res, next) {
   try {
@@ -356,6 +513,8 @@ export async function getUserTracks(req, res, next) {
     const [rows] = await pool.query(
       `SELECT
         lt.id,
+        lt.opportunity_id AS opportunityId,
+        lt.target_skill AS targetSkill,
         lt.topic,
         lt.learning_goal AS learningGoal,
         lt.level,
@@ -371,11 +530,16 @@ export async function getUserTracks(req, res, next) {
         lt.status,
         lt.created_at AS createdAt,
         lt.updated_at AS updatedAt,
+        o.title AS opportunityTitle,
+        o.organization AS opportunityOrganization,
+        o.type AS opportunityType,
+        o.source_url AS opportunitySourceUrl,
         COUNT(tt.id) AS totalTasks,
         COALESCE(SUM(CASE WHEN tt.completed = 1 THEN 1 ELSE 0 END), 0) AS completedTasks,
         COALESCE(MAX(tt.day_number), 0) AS totalDays,
         COALESCE(SUM(tt.estimated_minutes), 0) AS totalMinutes
       FROM learning_tracks lt
+      LEFT JOIN opportunities o ON o.id = lt.opportunity_id
       LEFT JOIN track_tasks tt ON tt.track_id = lt.id
       WHERE lt.user_id = ?
       GROUP BY lt.id
@@ -391,6 +555,13 @@ export async function getUserTracks(req, res, next) {
 
       return {
         id: r.id,
+        opportunityId: r.opportunityId || null,
+        targetSkill: r.targetSkill || null,
+        opportunityTitle: r.opportunityTitle || null,
+        opportunityOrganization: r.opportunityOrganization || null,
+        opportunityType: r.opportunityType || null,
+        opportunitySourceUrl: r.opportunitySourceUrl || null,
+        opportunityAvailable: Boolean(r.opportunityId && r.opportunityTitle),
         topic: r.topic,
         learningGoal: r.learningGoal,
         level: r.level,
@@ -441,14 +612,18 @@ export async function getTrackById(req, res, next) {
 
     const [trackRows] = await pool.query(
       `SELECT
-        id, user_id, topic, learning_goal AS learningGoal, level,
-        available_time AS availableTime, resource_video_id AS resourceVideoId,
-        resource_title AS resourceTitle, resource_channel AS resourceChannel,
-        resource_url AS resourceUrl, resource_thumbnail AS resourceThumbnail,
-        resource_duration AS resourceDuration, ai_generated AS aiGenerated,
-        start_date AS startDate, status, created_at AS createdAt, updated_at AS updatedAt
-      FROM learning_tracks
-      WHERE id = ?`,
+        lt.id, lt.user_id, lt.opportunity_id AS opportunityId, lt.target_skill AS targetSkill,
+        lt.topic, lt.learning_goal AS learningGoal, lt.level,
+        lt.available_time AS availableTime, lt.resource_video_id AS resourceVideoId,
+        lt.resource_title AS resourceTitle, lt.resource_channel AS resourceChannel,
+        lt.resource_url AS resourceUrl, lt.resource_thumbnail AS resourceThumbnail,
+        lt.resource_duration AS resourceDuration, lt.ai_generated AS aiGenerated,
+        lt.start_date AS startDate, lt.status, lt.created_at AS createdAt, lt.updated_at AS updatedAt,
+        o.title AS opportunityTitle, o.organization AS opportunityOrganization,
+        o.type AS opportunityType, o.source_url AS opportunitySourceUrl
+      FROM learning_tracks lt
+      LEFT JOIN opportunities o ON o.id = lt.opportunity_id
+      WHERE lt.id = ?`,
       [trackId]
     );
 
@@ -502,6 +677,13 @@ export async function getTrackById(req, res, next) {
       status: 'ok',
       track: {
         id: trackRow.id,
+        opportunityId: trackRow.opportunityId || null,
+        targetSkill: trackRow.targetSkill || null,
+        opportunityTitle: trackRow.opportunityTitle || null,
+        opportunityOrganization: trackRow.opportunityOrganization || null,
+        opportunityType: trackRow.opportunityType || null,
+        opportunitySourceUrl: trackRow.opportunitySourceUrl || null,
+        opportunityAvailable: Boolean(trackRow.opportunityId && trackRow.opportunityTitle),
         topic: trackRow.topic,
         learningGoal: trackRow.learningGoal,
         level: trackRow.level,

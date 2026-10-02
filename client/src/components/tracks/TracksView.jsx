@@ -12,6 +12,8 @@ export default function TracksView({
   initialTrackId = null,
   onClearInitialTrack,
   onNavigateToLearn,
+  onViewOpportunity = null,
+  onUpdateProfileSkills = null,
 }) {
   const [tracks, setTracks] = useState([]);
   const [loadingList, setLoadingList] = useState(true);
@@ -163,6 +165,7 @@ export default function TracksView({
       .sort((a, b) => a - b);
 
     const isCompleted = activeTrack.status === 'Completed';
+    const hasOpportunityLink = Boolean(activeTrack.opportunityId || activeTrack.targetSkill);
 
     return (
       <div className="w-full max-w-5xl mx-auto space-y-6">
@@ -206,16 +209,87 @@ export default function TracksView({
               )}
             </div>
 
-            <a
-              href={activeTrack.resourceUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs sm:text-sm transition-all shadow-lg shadow-indigo-600/30 inline-flex items-center gap-2"
-            >
-              <span>Watch Video on YouTube</span>
-              <span aria-hidden="true">↗</span>
-            </a>
+            <div className="flex flex-wrap items-center gap-2.5">
+              {activeTrack.opportunityId && activeTrack.opportunityAvailable && onViewOpportunity && (
+                <button
+                  type="button"
+                  onClick={() => onViewOpportunity(activeTrack.opportunityId)}
+                  className="px-4 py-2.5 rounded-xl bg-slate-700/90 hover:bg-slate-700 border border-slate-600 text-indigo-300 hover:text-white font-semibold text-xs sm:text-sm transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                >
+                  <span>View Opportunity</span>
+                  <span aria-hidden="true">→</span>
+                </button>
+              )}
+              <a
+                href={activeTrack.resourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs sm:text-sm transition-all shadow-lg shadow-indigo-600/30 inline-flex items-center gap-2"
+              >
+                <span>Watch Video on YouTube</span>
+                <span aria-hidden="true">↗</span>
+              </a>
+            </div>
           </div>
+
+          {/* Opportunity Context Strip (only when linked to an opportunity) */}
+          {hasOpportunityLink && (
+            <div className="mt-4 p-4 rounded-xl bg-indigo-950/40 border border-indigo-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                    Opportunity-Linked Track
+                  </span>
+                  <span className="text-xs font-semibold text-emerald-300">
+                    Target Skill: {activeTrack.targetSkill || activeTrack.topic}
+                  </span>
+                </div>
+                {activeTrack.opportunityAvailable && activeTrack.opportunityTitle ? (
+                  <p className="text-xs sm:text-sm font-semibold text-white">
+                    Preparing for:{' '}
+                    <span className="text-indigo-300">{activeTrack.opportunityTitle}</span>
+                    {activeTrack.opportunityOrganization ? (
+                      <span className="text-slate-400 font-normal">
+                        {' '}
+                        ({activeTrack.opportunityOrganization})
+                      </span>
+                    ) : null}
+                  </p>
+                ) : (
+                  <p className="text-xs text-slate-400">
+                    Originally created for an opportunity that is no longer available in the catalog.
+                  </p>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                {onUpdateProfileSkills && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onUpdateProfileSkills({
+                        opportunityId: activeTrack.opportunityId,
+                        opportunityTitle: activeTrack.opportunityTitle,
+                        targetSkill: activeTrack.targetSkill || activeTrack.topic,
+                      })
+                    }
+                    className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-medium text-slate-200 transition-colors cursor-pointer"
+                  >
+                    Update My Skills
+                  </button>
+                )}
+                {activeTrack.opportunityId && activeTrack.opportunityAvailable && onViewOpportunity && (
+                  <button
+                    type="button"
+                    onClick={() => onViewOpportunity(activeTrack.opportunityId)}
+                    className="px-3 py-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 text-xs font-semibold text-indigo-300 transition-colors cursor-pointer"
+                  >
+                    View Opportunity →
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
           {detailError && (
             <div className="mt-4 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-center justify-between">
@@ -289,6 +363,61 @@ export default function TracksView({
               </p>
             </div>
           </div>
+
+          {/* Track Completion Next-Step Guidance */}
+          {isCompleted && (
+            <div className="mt-6 p-5 rounded-2xl bg-emerald-950/30 border border-emerald-500/40 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    All Tasks Completed (100%)
+                  </span>
+                  <span className="text-xs font-semibold text-white">
+                    Next Step: Update Your Profile Skills
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed max-w-2xl">
+                  Great job completing your study schedule for{' '}
+                  <strong className="text-white">
+                    {activeTrack.targetSkill || activeTrack.topic}
+                  </strong>
+                  ! Completing a learning track does not automatically mark a skill as Known or
+                  guarantee official eligibility. When you feel ready, update your skill status in
+                  your profile ({' '}
+                  <span className="text-sky-300 font-medium">Learning</span> or{' '}
+                  <span className="text-emerald-300 font-medium">Knows</span>) and reanalyze your
+                  target opportunity.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                {onUpdateProfileSkills && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onUpdateProfileSkills({
+                        opportunityId: activeTrack.opportunityId,
+                        opportunityTitle: activeTrack.opportunityTitle,
+                        targetSkill: activeTrack.targetSkill || activeTrack.topic,
+                      })
+                    }
+                    className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs sm:text-sm transition-all shadow-lg shadow-emerald-600/25 cursor-pointer"
+                  >
+                    Update My Skills
+                  </button>
+                )}
+                {activeTrack.opportunityId && activeTrack.opportunityAvailable && onViewOpportunity && (
+                  <button
+                    type="button"
+                    onClick={() => onViewOpportunity(activeTrack.opportunityId)}
+                    className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs sm:text-sm transition-all shadow-lg shadow-indigo-600/25 cursor-pointer"
+                  >
+                    Reanalyze Opportunity →
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Daily Study Schedule with Interactive Checkboxes */}
@@ -446,6 +575,7 @@ export default function TracksView({
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {tracks.map((track) => {
             const isCompleted = track.status === 'Completed';
+            const hasOpportunityLink = Boolean(track.opportunityId || track.targetSkill);
             return (
               <div
                 key={track.id}
@@ -498,6 +628,35 @@ export default function TracksView({
                       {track.resourceTitle}
                     </h3>
 
+                    {/* Opportunity Context Box (only for opportunity-linked tracks) */}
+                    {hasOpportunityLink && (
+                      <div className="p-3 rounded-xl bg-indigo-950/40 border border-indigo-500/30 space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-300">
+                            Bridge My Skill Gap
+                          </span>
+                          <span className="text-[11px] font-semibold text-emerald-300">
+                            Target Skill: {track.targetSkill || track.topic}
+                          </span>
+                        </div>
+                        {track.opportunityAvailable && track.opportunityTitle ? (
+                          <p
+                            className="text-xs text-slate-200 font-medium line-clamp-1"
+                            title={track.opportunityTitle}
+                          >
+                            Preparing for:{' '}
+                            <span className="text-indigo-300 font-semibold">
+                              {track.opportunityTitle}
+                            </span>
+                          </p>
+                        ) : (
+                          <p className="text-[11px] text-slate-400">
+                            Linked opportunity is no longer available
+                          </p>
+                        )}
+                      </div>
+                    )}
+
                     {/* Progress Section */}
                     <div className="pt-2 space-y-1.5">
                       <div className="flex items-center justify-between text-xs">
@@ -524,8 +683,8 @@ export default function TracksView({
                   </div>
                 </div>
 
-                {/* Continue Learning Action */}
-                <div className="p-5 pt-0">
+                {/* Continue Learning & View Opportunity Actions */}
+                <div className="p-5 pt-0 space-y-2">
                   <button
                     type="button"
                     onClick={() => setSelectedTrackId(track.id)}
@@ -534,6 +693,16 @@ export default function TracksView({
                     <span>{isCompleted ? 'Review Completed Track' : 'Continue Learning'}</span>
                     <span aria-hidden="true">→</span>
                   </button>
+                  {track.opportunityId && track.opportunityAvailable && onViewOpportunity && (
+                    <button
+                      type="button"
+                      onClick={() => onViewOpportunity(track.opportunityId)}
+                      className="w-full py-2 px-3 rounded-xl bg-slate-900/90 hover:bg-slate-700/80 border border-slate-700 text-indigo-300 hover:text-white font-semibold text-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <span>View Opportunity</span>
+                      <span aria-hidden="true">↗</span>
+                    </button>
+                  )}
                 </div>
               </div>
             );

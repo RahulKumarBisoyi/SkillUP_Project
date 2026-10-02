@@ -8,7 +8,12 @@ const TASK_TYPE_STYLES = {
   Revision: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
 };
 
-export default function TrackPreview({ preview, onBack, onTrackSaved }) {
+export default function TrackPreview({
+  preview,
+  onBack,
+  onTrackSaved,
+  onReturnToOpportunity = null,
+}) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
@@ -31,6 +36,12 @@ export default function TrackPreview({ preview, onBack, onTrackSaved }) {
     aiGenerated,
     resource,
     tasks = [],
+    opportunityId = null,
+    targetSkill = null,
+    opportunityTitle = null,
+    opportunityOrganization = null,
+    opportunitySourceUrl = null,
+    contextToken = null,
   } = preview;
 
   // Group tasks by dayNumber for clean daily review
@@ -59,6 +70,13 @@ export default function TrackPreview({ preview, onBack, onTrackSaved }) {
         availableTime,
         aiGenerated,
         tasks,
+        ...(opportunityId
+          ? {
+              opportunityId,
+              targetSkill: targetSkill || topic,
+              contextToken: contextToken || undefined,
+            }
+          : {}),
       });
 
       if (onTrackSaved && response?.trackId) {
@@ -72,6 +90,50 @@ export default function TrackPreview({ preview, onBack, onTrackSaved }) {
 
   return (
     <div className="w-full max-w-5xl mx-auto space-y-6">
+      {/* Preserved Opportunity Context Banner */}
+      {opportunityId && opportunityTitle && (
+        <div className="bg-indigo-950/50 border border-indigo-500/40 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                Bridge My Skill Gap
+              </span>
+              <span className="text-xs font-semibold text-emerald-300">
+                Target Skill: {targetSkill || topic}
+              </span>
+            </div>
+            <p className="text-sm font-bold text-white">
+              Preparing for: <span className="text-indigo-300">{opportunityTitle}</span>
+              {opportunityOrganization ? (
+                <span className="text-xs font-normal text-slate-400"> ({opportunityOrganization})</span>
+              ) : null}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {onReturnToOpportunity && (
+              <button
+                type="button"
+                onClick={() => onReturnToOpportunity(opportunityId)}
+                disabled={saving}
+                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-medium text-slate-200 transition-colors cursor-pointer"
+              >
+                ← Return to Opportunity
+              </button>
+            )}
+            {opportunitySourceUrl && (
+              <a
+                href={opportunitySourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-xs font-medium text-indigo-300 transition-colors"
+              >
+                Official Page ↗
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Top Action & Header Box */}
       <div className="bg-slate-800/90 border border-slate-700/80 rounded-2xl p-6 sm:p-8 shadow-2xl backdrop-blur-sm">
         <div className="flex flex-wrap items-center justify-between gap-4 pb-6 border-b border-slate-700/80">

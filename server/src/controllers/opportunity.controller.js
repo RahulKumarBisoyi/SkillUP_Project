@@ -492,6 +492,7 @@ export async function analyzeOpportunity(req, res, next) {
       opportunity,
       userSkills,
       profile,
+      userId,
     });
 
     return res.status(200).json({

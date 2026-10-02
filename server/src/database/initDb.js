@@ -10,7 +10,75 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-async function initDatabase() {
+/**
+ * Safe, reproducible, idempotent migration for Milestone 7.
+ * Adds nullable `opportunity_id` (FK -> opportunities.id ON DELETE SET NULL)
+ * and `target_skill` columns to `learning_tracks` while preserving all existing rows.
+ */
+export async function migrateLearningTracksOpportunityColumns(connection, databaseName = null) {
+  const dbName = databaseName || process.env.DB_NAME || 'skillup_db';
+
+  // 1. Check existing columns on learning_tracks
+  const [columns] = await connection.query(
+    `SELECT COLUMN_NAME
+     FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'learning_tracks'`,
+    [dbName]
+  );
+  const existingCols = new Set(columns.map((c) => c.COLUMN_NAME));
+
+  if (!existingCols.has('opportunity_id')) {
+    console.log('[Database Migration] Adding nullable opportunity_id column to learning_tracks...');
+    await connection.query(
+      `ALTER TABLE learning_tracks
+       ADD COLUMN opportunity_id INT NULL DEFAULT NULL AFTER user_id`
+    );
+  }
+
+  if (!existingCols.has('target_skill')) {
+    console.log('[Database Migration] Adding nullable target_skill column to learning_tracks...');
+    await connection.query(
+      `ALTER TABLE learning_tracks
+       ADD COLUMN target_skill VARCHAR(255) NULL DEFAULT NULL AFTER opportunity_id`
+    );
+  }
+
+  // 2. Check existing index on opportunity_id
+  const [indexes] = await connection.query(
+    `SELECT INDEX_NAME
+     FROM information_schema.STATISTICS
+     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'learning_tracks' AND COLUMN_NAME = 'opportunity_id'`,
+    [dbName]
+  );
+  if (indexes.length === 0) {
+    console.log('[Database Migration] Adding index idx_tracks_opportunity_id on learning_tracks(opportunity_id)...');
+    await connection.query(
+      `ALTER TABLE learning_tracks
+       ADD INDEX idx_tracks_opportunity_id (opportunity_id)`
+    );
+  }
+
+  // 3. Check existing foreign key constraint on opportunity_id
+  const [fks] = await connection.query(
+    `SELECT CONSTRAINT_NAME
+     FROM information_schema.KEY_COLUMN_USAGE
+     WHERE TABLE_SCHEMA = ?
+       AND TABLE_NAME = 'learning_tracks'
+       AND COLUMN_NAME = 'opportunity_id'
+       AND REFERENCED_TABLE_NAME = 'opportunities'`,
+    [dbName]
+  );
+  if (fks.length === 0) {
+    console.log('[Database Migration] Adding foreign key fk_tracks_opportunity on learning_tracks(opportunity_id)...');
+    await connection.query(
+      `ALTER TABLE learning_tracks
+       ADD CONSTRAINT fk_tracks_opportunity
+       FOREIGN KEY (opportunity_id) REFERENCES opportunities(id) ON DELETE SET NULL`
+    );
+  }
+}
+
+export async function initDatabase() {
   const host = process.env.DB_HOST || 'localhost';
   const port = parseInt(process.env.DB_PORT || '3306', 10);
   const user = process.env.DB_USER || 'root';
@@ -41,6 +109,9 @@ async function initDatabase() {
     console.log('[Database Init] Executing schema.sql tables setup...');
     await connection.query(schemaSql);
 
+    console.log('[Database Init] Running Milestone 7 idempotent schema migrations...');
+    await migrateLearningTracksOpportunityColumns(connection, database);
+
     console.log('[Database Init] Seeding verified opportunities idempotently...');
     const seededCount = await seedOpportunities(connection);
     console.log(`[Database Init] Upserted ${seededCount} verified opportunities.`);
@@ -56,5 +127,9 @@ async function initDatabase() {
   }
 }
 
-initDatabase();
+// Run when executed directly via CLI
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(__filename)) {
+  initDatabase();
+}
+
 
