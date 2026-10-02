@@ -4,10 +4,21 @@ import { checkHealth } from './services/api';
 import LoginForm from './components/auth/LoginForm';
 import RegisterForm from './components/auth/RegisterForm';
 import ProfileView from './components/profile/ProfileView';
+import LearnView from './components/learn/LearnView';
 
 function AppContent() {
   const { user, loading: authLoading, logout } = useAuth();
   const [authMode, setAuthMode] = useState('login'); // 'login' | 'register'
+  const [activeTab, setActiveTab] = useState('learn'); // 'learn' | 'profile'
+  const [profileNotification, setProfileNotification] = useState(null);
+
+  const handleProfileSaveSuccess = () => {
+    setActiveTab('learn');
+    setProfileNotification('Profile and skills saved successfully! Ready to discover learning resources.');
+    setTimeout(() => {
+      setProfileNotification(null);
+    }, 5000);
+  };
 
   // Backend Health check status
   const [healthStatus, setHealthStatus] = useState({
@@ -45,9 +56,37 @@ function AppContent() {
               SkillUp
             </span>
             <span className="text-xs px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-medium">
-              Milestone 2
+              Milestone 3
             </span>
           </div>
+
+          {/* Center Tabs for Authenticated Student */}
+          {user && (
+            <nav className="flex items-center bg-slate-800/80 border border-slate-700/80 rounded-xl p-1">
+              <button
+                type="button"
+                onClick={() => setActiveTab('learn')}
+                className={`text-xs px-4 py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
+                  activeTab === 'learn'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Discover Resources
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('profile')}
+                className={`text-xs px-4 py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
+                  activeTab === 'profile'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                My Profile & Skills
+              </button>
+            </nav>
+          )}
 
           {/* Health indicator and User actions */}
           <div className="flex items-center gap-4">
@@ -122,23 +161,44 @@ function AppContent() {
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-8 flex flex-col justify-center">
+      <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-8 flex flex-col justify-center">
         {authLoading ? (
           <div className="flex flex-col items-center justify-center p-12 text-slate-400">
             <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
             <p className="text-sm">Initializing session...</p>
           </div>
         ) : user ? (
-          <ProfileView />
+          <div className="space-y-6 w-full">
+            {profileNotification && (
+              <div className="max-w-6xl mx-auto p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm flex items-center justify-between shadow-lg">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span>{profileNotification}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setProfileNotification(null)}
+                  className="text-emerald-300 hover:text-emerald-100 font-bold ml-2 text-xs cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+            {activeTab === 'learn' ? (
+              <LearnView />
+            ) : (
+              <ProfileView onSaveSuccess={handleProfileSaveSuccess} />
+            )}
+          </div>
         ) : (
-          <div className="space-y-8">
+          <div className="space-y-8 max-w-xl mx-auto w-full">
             {/* Introductory Hero info */}
-            <div className="text-center max-w-xl mx-auto">
+            <div className="text-center">
               <h1 className="text-3xl font-extrabold text-white tracking-tight">
                 SkillUp Student Portal
               </h1>
               <p className="text-sm text-slate-400 mt-2">
-                Sign in or create an account to configure your branch, year, goals, and track your skills matrix.
+                Sign in or create an account to discover AI-personalized YouTube learning resources and manage your profile.
               </p>
             </div>
 
@@ -154,12 +214,12 @@ function AppContent() {
 
       {/* Footer */}
       <footer className="border-t border-slate-800 bg-slate-900/60 py-6 px-4">
-        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
           <div>
-            <span className="font-semibold text-slate-400">SkillUp</span> — Milestone 2: MySQL Database + Authentication + Student Profile
+            <span className="font-semibold text-slate-400">SkillUp</span> — Milestone 3: Learning Resource Discovery
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="bg-slate-800 px-2 py-0.5 rounded text-slate-400">Learn</span>
+            <span className="bg-indigo-500/20 text-indigo-400 px-2 py-0.5 rounded font-medium">Learn</span>
             <span className="text-slate-600">→</span>
             <span className="bg-slate-800 px-2 py-0.5 rounded text-slate-400">Track</span>
             <span className="text-slate-600">→</span>

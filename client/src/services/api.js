@@ -9,16 +9,26 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 async function apiRequest(endpoint, options = {}) {
   const url = `${API_BASE_URL}${endpoint}`;
+  const { timeoutMs = 15000, ...fetchOptions } = options;
   const headers = {
     'Content-Type': 'application/json',
-    ...(options.headers || {}),
+    ...(fetchOptions.headers || {}),
   };
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
-    credentials: 'include', // Ensure cookies are sent and received
-  });
+  let response;
+  try {
+    response = await fetch(url, {
+      ...fetchOptions,
+      headers,
+      credentials: 'include', // Ensure cookies are sent and received
+      signal: fetchOptions.signal || AbortSignal.timeout(timeoutMs),
+    });
+  } catch (err) {
+    if (err.name === 'TimeoutError' || err.name === 'AbortError') {
+      throw new Error('Request timed out. Please try again.');
+    }
+    throw err;
+  }
 
   const data = await response.json().catch(() => ({}));
 
@@ -76,6 +86,16 @@ export async function updateProfile(profileData) {
   });
 }
 
+/**
+ * Learning Resource Discovery API (Milestone 3)
+ */
+export async function getRecommendations(searchParams) {
+  return apiRequest('/api/learn/recommend', {
+    method: 'POST',
+    body: JSON.stringify(searchParams),
+  });
+}
+
 export default {
   checkHealth,
   register,
@@ -84,4 +104,5 @@ export default {
   logout,
   getProfile,
   updateProfile,
+  getRecommendations,
 };

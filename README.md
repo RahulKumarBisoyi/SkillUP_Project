@@ -17,6 +17,9 @@ Learn ──> Track ──> Discover ──> Match ──> Find Skill Gaps ─�
 - **Backend**: Node.js, Express
 - **Database**: MySQL 8 (via `mysql2` connection pool)
 - **Security & Auth**: `bcryptjs` (password hashing), `jsonwebtoken` (JWT), `cookie-parser` (httpOnly cookies)
+- **External Services & AI**:
+  - **YouTube Data API v3**: Authentic educational video discovery and metadata retrieval
+  - **Google Gemini API**: Cognitive ranking and personalized "Why Recommended" justifications
 - **Architecture**: Modular Client-Server decoupled architecture
 
 ---
@@ -32,12 +35,13 @@ Skillup_hackathon/
 │   │   ├── components/          # Reusable UI components
 │   │   │   ├── auth/            # Authentication forms (LoginForm, RegisterForm)
 │   │   │   ├── common/          # Shared components (buttons, badges, modals)
+│   │   │   ├── learn/           # Learning Resource Discovery (LearnView, ResourceCard)
 │   │   │   └── profile/         # Student Profile & Skills management view
 │   │   ├── context/             # React Contexts (AuthContext for user state)
 │   │   ├── pages/               # Application view pages
 │   │   ├── services/            # API service layers
 │   │   │   └── api.js           # Central API client (fetch with credentials)
-│   │   ├── App.jsx              # Main application shell & view switcher
+│   │   ├── App.jsx              # Main application shell, navigation & view switcher
 │   │   ├── main.jsx             # React entry point
 │   │   └── index.css            # Tailwind CSS directives
 │   ├── .env.example             # Frontend environment variables template
@@ -52,6 +56,7 @@ Skillup_hackathon/
 │   │   │   └── db.js            # MySQL2 connection pool
 │   │   ├── controllers/         # Request handling & business logic
 │   │   │   ├── auth.controller.js
+│   │   │   ├── learn.controller.js # Learning recommendation controller
 │   │   │   └── profile.controller.js
 │   │   ├── database/            # Database schema & setup scripts
 │   │   │   ├── schema.sql       # Reproducible DDL script
@@ -61,7 +66,11 @@ Skillup_hackathon/
 │   │   ├── routes/              # Route definitions
 │   │   │   ├── auth.routes.js   # /api/auth endpoints (register, login, me, logout)
 │   │   │   ├── health.routes.js # GET /api/health endpoint
+│   │   │   ├── learn.routes.js  # POST /api/learn/recommend endpoint
 │   │   │   └── profile.routes.js# /api/profile endpoints (get, update)
+│   │   ├── services/            # External integration services
+│   │   │   ├── gemini.service.js  # AI ranking & explanation service
+│   │   │   └── youtube.service.js # YouTube Data API v3 search service
 │   │   └── app.js               # Express application configuration
 │   ├── .env.example             # Backend environment variables template
 │   ├── .gitignore               # Backend gitignore rules
@@ -71,6 +80,24 @@ Skillup_hackathon/
 ├── .gitignore                   # Root repository gitignore rules
 └── README.md                    # Project documentation
 ```
+
+---
+
+## Learning Resource Discovery Architecture (Milestone 3)
+
+### How It Works
+1. **Student Request**: Authenticated student enters a learning topic (e.g., `"DSA in C++"`), current skill level, learning goal, and available study time.
+2. **Factual Resource Discovery (YouTube Data API v3)**:
+   - Queries YouTube Data API v3 for targeted educational videos.
+   - Extracts authentic metadata: `videoId`, `title`, `channel`, `description`, `thumbnail`, `publishedAt`, and verified URL (`https://www.youtube.com/watch?v=<videoId>`).
+   - Limits retrieval to a compact candidate set (8 videos) only on explicit search submission.
+3. **Cognitive Personalization (Google Gemini API)**:
+   - Evaluates real candidates against the student's level, goals, and time commitment.
+   - Emits structured JSON ranking the candidate `videoId`s and providing concise, customized "Why Recommended" justifications.
+   - Gemini **never** creates synthetic URLs, video IDs, or metadata; the backend maps Gemini's IDs strictly back to verified YouTube objects.
+4. **Resilient Fallback**:
+   - If Gemini encounters high-demand spikes or transient errors, the server gracefully returns the real YouTube search candidates with a standard notice (`"Relevant YouTube result for your search."`).
+   - If YouTube fails, the server returns a clear error banner without fabricating videos.
 
 ---
 
@@ -108,7 +135,7 @@ The application connects to a MySQL 8 database (`skillup_db`) with the following
 - **Password Security**: Passwords are never stored in plaintext. They are salted and hashed using `bcryptjs` with 10 salt rounds before persistence.
 - **JWT Tokens**: On successful registration or login, a signed JSON Web Token (valid for 7 days) is issued containing the safe user payload (`id`, `email`).
 - **Cookie-Based Storage (httpOnly)**: The JWT is transmitted in a secure `httpOnly`, `SameSite=Lax` cookie. This prevents client-side JavaScript access and safeguards against Cross-Site Scripting (XSS) token theft.
-- **Header Fallback**: The auth middleware also supports standard `Authorization: Bearer <token>` headers, enabling easy programmatic testing (via Postman, curl, or automated scripts).
+- **Header Fallback**: The auth middleware also supports standard `Authorization: Bearer <token>` headers, enabling easy programmatic testing.
 - **Logout**: Handled via `POST /api/auth/logout`, which instructs the client browser to immediately clear the `token` cookie.
 
 ---
@@ -120,6 +147,8 @@ The application connects to a MySQL 8 database (`skillup_db`) with the following
 - [Node.js](https://nodejs.org/) (v20+ recommended, tested on v24)
 - [npm](https://www.npmjs.com/) (v10+)
 - [MySQL Server 8.0+](https://dev.mysql.com/downloads/mysql/) running locally on port 3306
+- YouTube Data API v3 Key
+- Google Gemini API Key
 
 ---
 
@@ -144,8 +173,11 @@ DB_PASSWORD=your_mysql_password
 DB_NAME=skillup_db
 JWT_SECRET=your_jwt_secret_key
 CLIENT_URL=http://localhost:5173
+YOUTUBE_API_KEY=your_youtube_api_key
+GEMINI_API_KEY=your_gemini_api_key
+GEMINI_MODEL=gemini-3.8-flash
 ```
-*(Never commit `.env` to Git. The `.gitignore` rules ensure `.env` remains local.)*
+*(Never commit `.env` to Git. The `.gitignore` rules ensure `.env` remains strictly local.)*
 
 #### Initialize Database Schema
 Run the automated schema runner to create the `skillup_db` database and execute all table definitions:
@@ -173,6 +205,12 @@ curl http://localhost:5000/api/health
 curl -X POST http://localhost:5000/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{"name":"Alex","email":"alex@college.edu","password":"password123"}'
+
+# Learning Resource Recommendations (Protected)
+curl -X POST http://localhost:5000/api/learn/recommend \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <your_jwt_token>" \
+  -d '{"topic":"DSA in C++","level":"Beginner","goal":"Placement prep","availableTime":"1 hour per day"}'
 ```
 
 ---
@@ -219,6 +257,12 @@ The React frontend starts on `http://localhost:5173`.
   - httpOnly cookie session management & logout
   - Student Profile & Skills matrix CRUD with MySQL persistence
   - Frontend authentication (Sign In, Sign Up) & Student Profile UI
-- [ ] **Milestone 3**: Personalized learning tracks & discovery *(upcoming)*
-- [ ] **Milestone 4**: Opportunity discovery (hackathons, internships) *(upcoming)*
-- [ ] **Milestone 5**: Opportunity matching & skill-gap analysis *(upcoming)*
+- [x] **Milestone 3: Learning Resource Discovery**
+  - YouTube Data API v3 integration with authentic video metadata
+  - Google Gemini API integration for personalized ranking and explanations
+  - Resilient fallback for Gemini transient spikes (standard YouTube results)
+  - Protected recommendation endpoint `POST /api/learn/recommend`
+  - Frontend Learn Page with responsive YouTube resource cards
+  - Safe external YouTube links (`target="_blank" rel="noopener noreferrer"`)
+- [ ] **Milestone 4**: Personalized learning tracks & progress tracking *(upcoming)*
+- [ ] **Milestone 5**: Opportunity discovery & skill-gap matching *(upcoming)*

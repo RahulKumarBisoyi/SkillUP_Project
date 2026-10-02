@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import * as api from '../../services/api';
 
-export default function ProfileView() {
+export default function ProfileView({ onSaveSuccess }) {
   const { user } = useAuth();
 
   const [loading, setLoading] = useState(true);
@@ -106,6 +106,9 @@ export default function ProfileView() {
       setSuccessMessage('Profile and skills saved to MySQL successfully!');
       if (res && res.skills) {
         setSkills(res.skills);
+      }
+      if (typeof onSaveSuccess === 'function') {
+        onSaveSuccess();
       }
     } catch (err) {
       setError(err.message || 'Failed to save profile.');
