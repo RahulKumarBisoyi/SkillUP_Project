@@ -1,5 +1,9 @@
 import pool from '../config/db.js';
 import { EXPLORE_PLATFORMS } from '../database/seedOpportunities.js';
+import {
+  analyzeStudentSkillsForOpportunity,
+  areSkillsEquivalent,
+} from '../services/skillAnalysis.service.js';
 
 const ALLOWED_TYPES = new Set(['Hackathon', 'Internship', 'Competition', 'Workshop']);
 
@@ -96,20 +100,10 @@ function normalizeToken(str) {
 }
 
 /**
- * Check if a student skill matches an opportunity skill (exact or token-level match).
+ * Check if a student skill matches an opportunity skill using strict canonical equivalence.
  */
 function skillsMatch(studentSkill, oppSkill) {
-  const a = normalizeToken(studentSkill);
-  const b = normalizeToken(oppSkill);
-  if (!a || !b) return false;
-  if (a === b) return true;
-
-  // Token containment for multi-word skills like "DSA in C++" vs "C++" or "DSA"
-  const aTokens = a.split(' ').filter((t) => t.length >= 2 || t === 'c');
-  const bTokens = b.split(' ').filter((t) => t.length >= 2 || t === 'c');
-
-  if (aTokens.includes(b) || bTokens.includes(a)) return true;
-  return false;
+  return areSkillsEquivalent(studentSkill, oppSkill);
 }
 
 /**
@@ -462,3 +456,50 @@ export async function getOpportunityById(req, res, next) {
     next(err);
   }
 }
+
+/**
+ * POST /api/opportunities/:id/analyze
+ * Performs deterministic skill-matching and gap analysis comparing the authenticated
+ * student's latest saved profile skills against the selected opportunity's skills,
+ * while keeping Official Eligibility and Official Focus Areas strictly separate.
+ */
+export async function analyzeOpportunity(req, res, next) {
+  try {
+    const userId = req.user.id;
+    const opportunityId = Number.parseInt(req.params.id, 10);
+
+    if (!Number.isInteger(opportunityId) || opportunityId <= 0) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid opportunity ID.',
+      });
+    }
+
+    const [{ profile, userSkills }, [rows]] = await Promise.all([
+      getStudentContext(userId),
+      pool.query('SELECT * FROM opportunities WHERE id = ? LIMIT 1', [opportunityId]),
+    ]);
+
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Opportunity not found.',
+      });
+    }
+
+    const opportunity = serializeOpportunity(rows[0], userSkills, profile);
+    const analysis = analyzeStudentSkillsForOpportunity({
+      opportunity,
+      userSkills,
+      profile,
+    });
+
+    return res.status(200).json({
+      status: 'ok',
+      ...analysis,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+

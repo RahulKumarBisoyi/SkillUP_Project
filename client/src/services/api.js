@@ -160,6 +160,16 @@ export async function getOpportunityById(opportunityId) {
   });
 }
 
+/**
+ * Opportunity Skill Matching & Gap Analysis API (Milestone 6)
+ */
+export async function analyzeOpportunitySkills(opportunityId) {
+  return apiRequest(`/api/opportunities/${opportunityId}/analyze`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
 export default {
   checkHealth,
   register,
@@ -176,5 +186,7 @@ export default {
   updateTrackTask,
   getOpportunities,
   getOpportunityById,
+  analyzeOpportunitySkills,
 };
+
 

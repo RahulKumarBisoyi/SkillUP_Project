@@ -72,12 +72,13 @@ Skillup_hackathon/
 │   │   │   ├── auth.routes.js        # /api/auth endpoints (register, login, me, logout)
 │   │   │   ├── health.routes.js      # GET /api/health endpoint
 │   │   │   ├── learn.routes.js       # POST /api/learn/recommend endpoint
-│   │   │   ├── opportunity.routes.js # /api/opportunities endpoints (list, detail)
+│   │   │   ├── opportunity.routes.js # /api/opportunities endpoints (list, detail, analyze)
 │   │   │   ├── profile.routes.js     # /api/profile endpoints (get, update)
 │   │   │   └── track.routes.js       # /api/tracks endpoints
-│   │   ├── services/            # External integration services
-│   │   │   ├── gemini.service.js  # AI ranking, explanation & schedule service
-│   │   │   └── youtube.service.js # YouTube Data API v3 search & verification service
+│   │   ├── services/            # External & domain services
+│   │   │   ├── gemini.service.js        # AI ranking, explanation & schedule service
+│   │   │   ├── skillAnalysis.service.js # Deterministic skill matching & gap analysis service
+│   │   │   └── youtube.service.js       # YouTube Data API v3 search & verification service
 │   │   └── app.js               # Express application configuration
 │   ├── .env.example             # Backend environment variables template
 │   ├── .gitignore               # Backend gitignore rules
@@ -241,6 +242,41 @@ The application connects to a MySQL 8 database (`skillup_db`) with the following
 
 ---
 
+## Skill Matching & Gap Analysis Architecture (Milestone 6)
+
+### 1. Overview & Skill-Comparison Approach
+When an authenticated student opens an opportunity's details view (or clicks **Analyze My Skills**), SkillUP calls `POST /api/opportunities/:id/analyze` to compare the student's latest saved `user_skills` against the opportunity's associated technical skills using [`skillAnalysis.service.js`](file:///c:/Users/rahul/OneDrive/Desktop/Skillup_hackathon/server/src/services/skillAnalysis.service.js).
+
+- **Deterministic Normalization & Canonical Alias Matching**:
+  - Skill names are trimmed, whitespace-normalized, and compared case-insensitively.
+  - Only **genuinely equivalent aliases** map to the same canonical skill (`JS` $\leftrightarrow$ `JavaScript`, `TS` $\leftrightarrow$ `TypeScript`, `Py` $\leftrightarrow$ `Python`, `CPP` $\leftrightarrow$ `C++`, `ML` $\leftrightarrow$ `Machine Learning`, `OS` $\leftrightarrow$ `Operating Systems`, `Data Structures and Algorithms` $\leftrightarrow$ `DSA`).
+  - **Strict Non-Equivalence**: Related or broader/narrower skills are **never** treated as identical (`C++` $\neq$ `DSA`, `C++` $\neq$ `DSA in C++`, `Python` $\neq$ `Machine Learning`, `HTML` $\neq$ `Web Development`, `React` $\neq$ `JavaScript`, `Git` $\neq$ `GitHub`, `Full-Stack Web Development` $\neq$ `Web Development`).
+- **No Dependency on External AI Calls**:
+  - The skill comparison is 100% deterministic in the backend, ensuring `<20ms` latency, zero risk of `503` service interruptions, and zero hallucinated requirements.
+
+### 2. Three Skill Categories
+1. **Known Skills (`knownSkills`)**: Associated technical skills that match a skill the student has marked as **`Knows`** in their profile.
+2. **Currently Learning (`learningSkills`)**: Associated technical skills that match a skill the student has marked as **`Learning`** in their profile.
+3. **Skills to Develop (`missingSkills`)**: Associated technical skills that are not yet listed in the student's profile (presented as skills to develop or add if already known, never claiming the student lacks ability).
+
+### 3. Official Eligibility vs. Official Focus Areas vs. Suggested Skill Alignment
+SkillUP strictly separates three distinct types of opportunity metadata:
+- **Official Eligibility (`officialEligibility`)**: The organizer's verified enrollment, academic, age, or participation rules from the source page. Even when a student lists **every** associated skill (`missingSkills = []`), SkillUP never declares the student automatically eligible and always indicates that official confirmation on the organizer's page is required. If eligibility text is missing, SkillUP displays: *"Official eligibility could not be fully determined. Check the original opportunity page."*
+- **Official Focus Areas / Domains (`officialFocusAreas`)**: The general themes, problem domains, or cloud services published on the official page (e.g., `"Problem Solving"`, `"Open Source Contribution"`, `"Algorithmic Programming"`). These are displayed separately and never misrepresented as mandatory programming language prerequisites.
+- **Suggested Technical Skills (`suggestedSkills`)**: Concrete technical skills inferred by SkillUP to help students prepare or align their learning tracks (`analysisType: "suggested_skill_alignment"`).
+
+### 4. Milestone 6 Backend Endpoint (Protected by JWT Auth)
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `POST` | `/api/opportunities/:id/analyze` | Compare the authenticated student's latest saved `user_skills` with opportunity `:id` and return `knownSkills`, `learningSkills`, `missingSkills`, `summary`, and `officialEligibility` |
+
+### 5. Current Limitations
+- Student profile skills are self-reported (`Knows` / `Learning`) and are not formally verified assessments.
+- Most student hackathons, internships, and competitions publish general focus areas rather than mandatory programming language lock-ins; therefore, technical comparisons represent **Suggested Skill Alignment** rather than mandatory application prerequisites.
+- Direct automated learning-track creation from missing skills (*Bridge My Skill Gap*) belongs to Milestone 7 and is not yet enabled in Milestone 6.
+
+---
+
 ## Authentication Strategy
 
 - **Password Security**: Passwords are never stored in plaintext. They are salted and hashed using `bcryptjs` with 10 salt rounds before persistence.
@@ -325,6 +361,11 @@ curl http://localhost:5000/api/tracks \
 # List Verified Opportunities & Personalized Recommendations (Protected)
 curl "http://localhost:5000/api/opportunities?type=Hackathon" \
   -H "Authorization: Bearer <your_jwt_token>"
+
+# Analyze Student Skills Against Opportunity #1 (Protected - Milestone 6)
+curl -X POST http://localhost:5000/api/opportunities/1/analyze \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <your_jwt_token>"
 ```
 
 ---
@@ -388,9 +429,16 @@ The React frontend starts on `http://localhost:5173`.
   - MySQL `opportunities` table with multi-edition support (`edition_slug`) and idempotent seeding (`npm run db:init`)
   - 11 individually verified student opportunities across Hackathons, Internships, Competitions, and Workshops
   - Strict separation of `official_eligibility` & `required_skills` from `suggested_skills`
-  - Dedicated **Explore General Discovery Platforms** section for general directories (Devpost, AICTE, MLH, Kaggle)
+  - Dedicated **Explore General Discovery Platforms** section for general directories (Unstop, Devpost, AICTE, MLH, Kaggle) and specific Unstop listing support
   - Honest status & deadline computation (`Open`, `Upcoming`, `Check Official Page`, `Expired`)
   - Protected endpoints (`GET /api/opportunities`, `GET /api/opportunities/:id`) with explainable profile-based relevance suggestions
   - Frontend **Opportunities** discovery page, filters, search, and **Opportunity Details** view with safe external links
-- [ ] **Milestone 6**: Skill-gap analysis & matching *(upcoming)*
+- [x] **Milestone 6: Skill Matching and Gap Analysis**
+  - Deterministic skill-comparison service (`skillAnalysis.service.js`) with strict canonical alias matching and non-equivalence protection
+  - Protected endpoint `POST /api/opportunities/:id/analyze` retrieving the authenticated student's live profile skills
+  - Three-category classification (**Known Skills**, **Currently Learning**, **Skills to Develop**) with plain-language explanations
+  - Strict separation between **Official Eligibility**, **Official Focus Areas**, and **Suggested Skill Alignment**
+  - Integrated **My Skill Analysis** and **Official Eligibility** UI sections in `OpportunitiesView.jsx`
+- [ ] **Milestone 7**: Bridge My Skill Gap *(upcoming)*
+
 
