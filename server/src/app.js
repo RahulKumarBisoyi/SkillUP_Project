@@ -6,6 +6,7 @@ import authRoutes from './routes/auth.routes.js';
 import profileRoutes from './routes/profile.routes.js';
 import learnRoutes from './routes/learn.routes.js';
 import trackRoutes from './routes/track.routes.js';
+import opportunityRoutes from './routes/opportunity.routes.js';
 
 const app = express();
 
@@ -28,6 +29,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/learn', learnRoutes);
 app.use('/api/tracks', trackRoutes);
+app.use('/api/opportunities', opportunityRoutes);
 
 // 404 handler for undefined routes
 app.use((req, res) => {

@@ -36,7 +36,9 @@ Skillup_hackathon/
 │   │   │   ├── auth/            # Authentication forms (LoginForm, RegisterForm)
 │   │   │   ├── common/          # Shared components (buttons, badges, modals)
 │   │   │   ├── learn/           # Learning Resource Discovery (LearnView, ResourceCard)
-│   │   │   └── profile/         # Student Profile & Skills management view
+│   │   │   ├── opportunities/   # Verified Opportunity Discovery & Details (OpportunitiesView)
+│   │   │   ├── profile/         # Student Profile & Skills management view
+│   │   │   └── tracks/          # Personalized Learning Tracks (TrackPreview, MyTracksView, TrackDetailView)
 │   │   ├── context/             # React Contexts (AuthContext for user state)
 │   │   ├── pages/               # Application view pages
 │   │   ├── services/            # API service layers
@@ -56,21 +58,26 @@ Skillup_hackathon/
 │   │   │   └── db.js            # MySQL2 connection pool
 │   │   ├── controllers/         # Request handling & business logic
 │   │   │   ├── auth.controller.js
-│   │   │   ├── learn.controller.js # Learning recommendation controller
-│   │   │   └── profile.controller.js
+│   │   │   ├── learn.controller.js       # Learning recommendation controller
+│   │   │   ├── opportunity.controller.js # Verified opportunity discovery & relevance controller
+│   │   │   ├── profile.controller.js
+│   │   │   └── track.controller.js       # Personalized learning track controller
 │   │   ├── database/            # Database schema & setup scripts
-│   │   │   ├── schema.sql       # Reproducible DDL script
-│   │   │   └── initDb.js        # Automated migration runner (npm run db:init)
+│   │   │   ├── schema.sql            # Reproducible DDL script
+│   │   │   ├── seedOpportunities.js  # Curated, verified opportunities & idempotent seeder
+│   │   │   └── initDb.js             # Automated migration & seeding runner (npm run db:init)
 │   │   ├── middlewares/         # Express middlewares
 │   │   │   └── auth.middleware.js # JWT verification (cookie & Bearer)
 │   │   ├── routes/              # Route definitions
-│   │   │   ├── auth.routes.js   # /api/auth endpoints (register, login, me, logout)
-│   │   │   ├── health.routes.js # GET /api/health endpoint
-│   │   │   ├── learn.routes.js  # POST /api/learn/recommend endpoint
-│   │   │   └── profile.routes.js# /api/profile endpoints (get, update)
+│   │   │   ├── auth.routes.js        # /api/auth endpoints (register, login, me, logout)
+│   │   │   ├── health.routes.js      # GET /api/health endpoint
+│   │   │   ├── learn.routes.js       # POST /api/learn/recommend endpoint
+│   │   │   ├── opportunity.routes.js # /api/opportunities endpoints (list, detail)
+│   │   │   ├── profile.routes.js     # /api/profile endpoints (get, update)
+│   │   │   └── track.routes.js       # /api/tracks endpoints
 │   │   ├── services/            # External integration services
-│   │   │   ├── gemini.service.js  # AI ranking & explanation service
-│   │   │   └── youtube.service.js # YouTube Data API v3 search service
+│   │   │   ├── gemini.service.js  # AI ranking, explanation & schedule service
+│   │   │   └── youtube.service.js # YouTube Data API v3 search & verification service
 │   │   └── app.js               # Express application configuration
 │   ├── .env.example             # Backend environment variables template
 │   ├── .gitignore               # Backend gitignore rules
@@ -158,6 +165,24 @@ The application connects to a MySQL 8 database (`skillup_db`) with the following
    - `completed_at`: TIMESTAMP NULL
    - `sort_order`: INT NOT NULL
 
+6. **`opportunities`** *(Milestone 5)*
+   - `id`: INT AUTO_INCREMENT PRIMARY KEY
+   - `edition_slug`: VARCHAR(150) NOT NULL UNIQUE *(allows multiple event editions of the same recurring program to coexist while keeping `npm run db:init` seeding idempotent)*
+   - `title`: VARCHAR(255) NOT NULL
+   - `type`: ENUM('Hackathon', 'Internship', 'Competition', 'Workshop') NOT NULL
+   - `organization`: VARCHAR(255) NOT NULL
+   - `description`: TEXT NOT NULL
+   - `deadline`: DATE NULL *(explicitly `NULL` when not published on the official page; never fabricated)*
+   - `start_date`: DATE NULL
+   - `location_mode`: VARCHAR(100) NOT NULL DEFAULT 'Online'
+   - `official_eligibility`: TEXT NOT NULL *(official student/enrollment/age eligibility rules from the organizer)*
+   - `required_skills`: JSON NOT NULL *(only skills explicitly mandated by the official rules)*
+   - `suggested_skills`: JSON NOT NULL *(inferred/relevant technical skills mapped to SkillUP learning topics for discovery & future skill-gap analysis)*
+   - `source_url`: VARCHAR(500) NOT NULL *(verified `https://` official program page)*
+   - `status`: ENUM('Open', 'Upcoming', 'Check Official Page', 'Expired') NOT NULL DEFAULT 'Check Official Page'
+   - `last_verified_at`: DATE NOT NULL
+   - `created_at` / `updated_at`: TIMESTAMP
+
 ---
 
 ## Personalized Learning Tracks Architecture (Milestone 4)
@@ -187,6 +212,32 @@ The application connects to a MySQL 8 database (`skillup_db`) with the following
 | `GET` | `/api/tracks` | List all saved learning tracks and progress metrics for the authenticated student |
 | `GET` | `/api/tracks/:id` | Retrieve full details and ordered daily tasks for a specific owned learning track |
 | `PATCH` | `/api/tracks/:id/tasks/:taskId` | Toggle a task's completion status and recalculate track progress/status |
+
+---
+
+## Verified Opportunity Discovery Architecture (Milestone 5)
+
+### How Opportunity Discovery & Relevance Work
+1. **Curated, Individually Verified Opportunities**:
+   - `server/src/database/seedOpportunities.js` seeds 11 individually verified engineering student opportunities across **Hackathons**, **Internships**, **Competitions**, and **Workshops** (including Smart India Hackathon, MLH Global Hack Week editions, Linux Foundation LFX Mentorship, Outreachy, Google Summer of Code, ICPC, Microsoft Imagine Cup, AWS Educate Labs, and GitHub Skills).
+   - General discovery portals (**Unstop**, Devpost Hackathons Directory, AICTE National Internship Portal, MLH Season Directory, Kaggle Competitions) are never disguised as single opportunities; instead, they are returned in a dedicated `explorePlatforms` section (**Explore General Discovery Platforms**).
+   - Specific verified opportunities hosted on Unstop (`unstop.com/<category>/<slug>`) are supported natively in the MySQL `opportunities` table and serialized with `hostingPlatform: "Unstop"`, `isUnstopListing: true`, and `Apply on Unstop ↗` buttons linking directly to the specific listing URL rather than Unstop's homepage.
+2. **Multi-Edition Storage & Idempotent Seeding**:
+   - Each opportunity record is uniquely identified by `edition_slug` (e.g., `mlh-ghw-hacktoberfest-2026`, `mlh-ghw-builders-week-2026`, `mlh-ghw-data-week-2026-past`), allowing multiple editions of the same recurring program to coexist in MySQL while keeping `npm run db:init` 100% idempotent via `INSERT ... ON DUPLICATE KEY UPDATE`.
+3. **Strict Separation of Official Eligibility vs. Suggested Technical Skills**:
+   - Every opportunity separates organizer-published rules (`officialEligibility` and `requiredSkills`) from SkillUP's mapped technical skills (`suggestedSkills`), preparing a clean foundation for Milestone 6 skill-gap analysis.
+4. **Honest Status & Deadline Handling**:
+   - Opportunities with a past deadline (`deadline < today`) are automatically flagged as `Expired` (`isExpired: true`) and excluded from **Recommended for Your Profile & Skills**.
+   - Opportunities without a single static cutoff date on their official page use `deadline: null` (`"Deadline not specified on official page"`) and `status: "Check Official Page"` rather than assuming they are currently open.
+5. **Explainable Relevance Suggestions**:
+   - `GET /api/opportunities` compares each non-expired opportunity against the logged-in student's `user_skills` (`Knows` and `Learning`) and `profiles` (`interests`, `career_goals`).
+   - Instead of fabricated match percentages, each recommended opportunity displays a transparent explanation (e.g., *"Suggested based on skills you know (JavaScript, React) and skills you are learning (Python, SQL & DBMS). Relevance suggestion only — check official eligibility requirements before applying."*).
+
+### Milestone 5 Backend Endpoints (All Protected by JWT Auth)
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/api/opportunities` | List verified opportunities with optional `?type=`, `?search=`, `?recommended=true`, and `?includeExpired=` filters, plus `recommendedOpportunities` and `explorePlatforms` |
+| `GET` | `/api/opportunities/:id` | Retrieve full details, official eligibility, required skills, suggested skills, and profile relevance for a single opportunity |
 
 ---
 
@@ -239,8 +290,8 @@ GEMINI_MODEL=gemini-3.8-flash
 ```
 *(Never commit `.env` to Git. The `.gitignore` rules ensure `.env` remains strictly local.)*
 
-#### Initialize / Migrate Database Schema
-Run the automated schema runner to create `skillup_db` and initialize all Milestone 2 & Milestone 4 tables (`users`, `profiles`, `user_skills`, `learning_tracks`, `track_tasks`) without losing existing data:
+#### Initialize / Migrate Database Schema & Seed Verified Opportunities
+Run the automated schema runner to create `skillup_db`, initialize all tables (`users`, `profiles`, `user_skills`, `learning_tracks`, `track_tasks`, `opportunities`), and idempotently seed the verified opportunities dataset without losing existing data:
 ```bash
 npm run db:init
 ```
@@ -269,6 +320,10 @@ curl -X POST http://localhost:5000/api/tracks/generate \
 
 # List Saved Learning Tracks (Protected)
 curl http://localhost:5000/api/tracks \
+  -H "Authorization: Bearer <your_jwt_token>"
+
+# List Verified Opportunities & Personalized Recommendations (Protected)
+curl "http://localhost:5000/api/opportunities?type=Hackathon" \
   -H "Authorization: Bearer <your_jwt_token>"
 ```
 
@@ -329,4 +384,13 @@ The React frontend starts on `http://localhost:5173`.
   - Gemini personalized study plan generation (`generateTrackSchedule`) with flexible duration, strict daily time limit enforcement, and non-AI fallback
   - Protected REST endpoints (`POST /api/tracks/generate`, `POST /api/tracks`, `GET /api/tracks`, `GET /api/tracks/:id`, `PATCH /api/tracks/:id/tasks/:taskId`)
   - Frontend **Create My Track**, **Track Preview**, **My Tracks**, and **Track Detail** progress tracking views
-- [ ] **Milestone 5**: Opportunity discovery & skill-gap matching *(upcoming)*
+- [x] **Milestone 5: Opportunity Discovery**
+  - MySQL `opportunities` table with multi-edition support (`edition_slug`) and idempotent seeding (`npm run db:init`)
+  - 11 individually verified student opportunities across Hackathons, Internships, Competitions, and Workshops
+  - Strict separation of `official_eligibility` & `required_skills` from `suggested_skills`
+  - Dedicated **Explore General Discovery Platforms** section for general directories (Devpost, AICTE, MLH, Kaggle)
+  - Honest status & deadline computation (`Open`, `Upcoming`, `Check Official Page`, `Expired`)
+  - Protected endpoints (`GET /api/opportunities`, `GET /api/opportunities/:id`) with explainable profile-based relevance suggestions
+  - Frontend **Opportunities** discovery page, filters, search, and **Opportunity Details** view with safe external links
+- [ ] **Milestone 6**: Skill-gap analysis & matching *(upcoming)*
+

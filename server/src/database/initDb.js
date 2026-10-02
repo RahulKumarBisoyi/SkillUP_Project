@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
+import { seedOpportunities } from './seedOpportunities.js';
 
 dotenv.config();
 
@@ -40,7 +41,11 @@ async function initDatabase() {
     console.log('[Database Init] Executing schema.sql tables setup...');
     await connection.query(schemaSql);
 
-    console.log('[Database Init] Database schema initialized successfully!');
+    console.log('[Database Init] Seeding verified opportunities idempotently...');
+    const seededCount = await seedOpportunities(connection);
+    console.log(`[Database Init] Upserted ${seededCount} verified opportunities.`);
+
+    console.log('[Database Init] Database schema and seed data initialized successfully!');
   } catch (error) {
     console.error('[Database Init Error] Failed to initialize database:', error.message);
     process.exit(1);
@@ -52,3 +57,4 @@ async function initDatabase() {
 }
 
 initDatabase();
+

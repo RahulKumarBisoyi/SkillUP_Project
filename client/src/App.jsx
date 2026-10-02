@@ -7,11 +7,12 @@ import RegisterForm from './components/auth/RegisterForm';
 import ProfileView from './components/profile/ProfileView';
 import LearnView from './components/learn/LearnView';
 import TracksView from './components/tracks/TracksView';
+import OpportunitiesView from './components/opportunities/OpportunitiesView';
 
 function AppContent() {
   const { user, loading: authLoading, logout } = useAuth();
   const [authMode, setAuthMode] = useState('login'); // 'login' | 'register'
-  const [activeTab, setActiveTab] = useState('learn'); // 'learn' | 'tracks' | 'profile'
+  const [activeTab, setActiveTab] = useState('learn'); // 'learn' | 'tracks' | 'opportunities' | 'profile'
   const [selectedTrackId, setSelectedTrackId] = useState(null);
   const [profileNotification, setProfileNotification] = useState(null);
 
@@ -74,17 +75,17 @@ function AppContent() {
               SkillUp
             </span>
             <span className="text-xs px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-medium">
-              Milestone 4
+              Milestone 5
             </span>
           </div>
 
           {/* Center Tabs for Authenticated Student */}
           {user && (
-            <nav className="flex items-center bg-slate-800/80 border border-slate-700/80 rounded-xl p-1">
+            <nav className="flex flex-wrap items-center bg-slate-800/80 border border-slate-700/80 rounded-xl p-1 gap-0.5">
               <button
                 type="button"
                 onClick={() => setActiveTab('learn')}
-                className={`text-xs px-4 py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
+                className={`text-xs px-3.5 py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
                   activeTab === 'learn'
                     ? 'bg-indigo-600 text-white shadow-sm'
                     : 'text-slate-400 hover:text-white'
@@ -98,7 +99,7 @@ function AppContent() {
                   setSelectedTrackId(null);
                   setActiveTab('tracks');
                 }}
-                className={`text-xs px-4 py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
+                className={`text-xs px-3.5 py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
                   activeTab === 'tracks'
                     ? 'bg-indigo-600 text-white shadow-sm'
                     : 'text-slate-400 hover:text-white'
@@ -108,8 +109,19 @@ function AppContent() {
               </button>
               <button
                 type="button"
+                onClick={() => setActiveTab('opportunities')}
+                className={`text-xs px-3.5 py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
+                  activeTab === 'opportunities'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Opportunities
+              </button>
+              <button
+                type="button"
                 onClick={() => setActiveTab('profile')}
-                className={`text-xs px-4 py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
+                className={`text-xs px-3.5 py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
                   activeTab === 'profile'
                     ? 'bg-indigo-600 text-white shadow-sm'
                     : 'text-slate-400 hover:text-white'
@@ -224,6 +236,10 @@ function AppContent() {
                 onClearInitialTrack={() => setSelectedTrackId(null)}
                 onNavigateToLearn={() => setActiveTab('learn')}
               />
+            ) : activeTab === 'opportunities' ? (
+              <OpportunitiesView
+                onNavigateToProfile={() => setActiveTab('profile')}
+              />
             ) : (
               <ProfileView onSaveSuccess={handleProfileSaveSuccess} />
             )}
@@ -236,7 +252,7 @@ function AppContent() {
                 SkillUp Student Portal
               </h1>
               <p className="text-sm text-slate-400 mt-2">
-                Sign in or create an account to discover AI-personalized YouTube learning resources, create learning tracks, and manage your profile.
+                Sign in or create an account to discover AI-personalized YouTube learning resources, create learning tracks, explore verified opportunities, and manage your profile.
               </p>
             </div>
 
@@ -254,14 +270,14 @@ function AppContent() {
       <footer className="border-t border-slate-800 bg-slate-900/60 py-6 px-4">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
           <div>
-            <span className="font-semibold text-slate-400">SkillUp</span> — Milestone 4: Personalized Learning Tracks
+            <span className="font-semibold text-slate-400">SkillUp</span> — Milestone 5: Opportunity Discovery
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="bg-indigo-500/20 text-indigo-400 px-2 py-0.5 rounded font-medium">Learn</span>
             <span className="text-slate-600">→</span>
             <span className="bg-indigo-500/20 text-indigo-400 px-2 py-0.5 rounded font-medium">Track</span>
             <span className="text-slate-600">→</span>
-            <span className="bg-slate-800 px-2 py-0.5 rounded text-slate-400">Discover</span>
+            <span className="bg-indigo-500/20 text-indigo-400 px-2 py-0.5 rounded font-medium">Discover</span>
             <span className="text-slate-600">→</span>
             <span className="bg-slate-800 px-2 py-0.5 rounded text-slate-400">Match</span>
           </div>

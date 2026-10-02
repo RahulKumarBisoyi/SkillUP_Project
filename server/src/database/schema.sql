@@ -1,4 +1,4 @@
--- SkillUp Milestone 2 & 4 Database Schema
+-- SkillUp Milestone 2, 4 & 5 Database Schema
 
 -- Users table
 CREATE TABLE IF NOT EXISTS users (
@@ -69,3 +69,28 @@ CREATE TABLE IF NOT EXISTS track_tasks (
   FOREIGN KEY (track_id) REFERENCES learning_tracks(id) ON DELETE CASCADE,
   INDEX idx_tasks_track_id (track_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Milestone 5: Opportunities table
+CREATE TABLE IF NOT EXISTS opportunities (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  edition_slug VARCHAR(150) NOT NULL UNIQUE,
+  title VARCHAR(255) NOT NULL,
+  type ENUM('Hackathon', 'Internship', 'Competition', 'Workshop') NOT NULL,
+  organization VARCHAR(255) NOT NULL,
+  description TEXT NOT NULL,
+  deadline DATE NULL DEFAULT NULL,
+  start_date DATE NULL DEFAULT NULL,
+  location_mode VARCHAR(150) NOT NULL DEFAULT 'Online',
+  official_eligibility TEXT NOT NULL,
+  required_skills JSON NOT NULL,
+  suggested_skills JSON NOT NULL,
+  source_url VARCHAR(500) NOT NULL,
+  status ENUM('Open', 'Upcoming', 'Check Official Page', 'Expired') NOT NULL DEFAULT 'Check Official Page',
+  last_verified_at DATE NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_opportunities_type (type),
+  INDEX idx_opportunities_status (status),
+  INDEX idx_opportunities_deadline (deadline)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+

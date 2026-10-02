@@ -132,6 +132,34 @@ export async function updateTrackTask(trackId, taskId, completed) {
   });
 }
 
+/**
+ * Opportunity Discovery API (Milestone 5)
+ */
+export async function getOpportunities(params = {}) {
+  const searchParams = new URLSearchParams();
+  if (params.type && params.type !== 'All') {
+    searchParams.set('type', params.type);
+  }
+  if (params.search && params.search.trim()) {
+    searchParams.set('search', params.search.trim());
+  }
+  if (params.recommended !== undefined) {
+    searchParams.set('recommended', String(params.recommended));
+  }
+  if (params.includeExpired !== undefined) {
+    searchParams.set('includeExpired', String(params.includeExpired));
+  }
+  const queryString = searchParams.toString();
+  const endpoint = queryString ? `/api/opportunities?${queryString}` : '/api/opportunities';
+  return apiRequest(endpoint, { method: 'GET' });
+}
+
+export async function getOpportunityById(opportunityId) {
+  return apiRequest(`/api/opportunities/${opportunityId}`, {
+    method: 'GET',
+  });
+}
+
 export default {
   checkHealth,
   register,
@@ -146,4 +174,7 @@ export default {
   getTracks,
   getTrackById,
   updateTrackTask,
+  getOpportunities,
+  getOpportunityById,
 };
+
