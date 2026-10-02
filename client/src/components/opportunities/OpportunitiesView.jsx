@@ -84,6 +84,21 @@ function getTypeBadgeStyle(type) {
   }
 }
 
+function getTypeIcon(type) {
+  switch (type) {
+    case 'Hackathon':
+      return '⚡';
+    case 'Internship':
+      return '💼';
+    case 'Competition':
+      return '🏆';
+    case 'Workshop':
+      return '🛠';
+    default:
+      return '📌';
+  }
+}
+
 function getStatusBadgeStyle(status) {
   switch (status) {
     case 'Open':
@@ -102,14 +117,16 @@ function getStatusBadgeStyle(status) {
 function formatDeadlineInfo(opp) {
   if (!opp.deadline) {
     return {
-      text: 'Deadline not specified on official page',
-      subtext: 'Check official page for cohort dates',
+      text: 'Check official page for cohort dates',
+      shortText: 'Cohort / Rolling',
+      subtext: 'No static cutoff date listed',
       urgent: false,
     };
   }
   if (opp.isExpired) {
     return {
       text: `${opp.deadline} (Past Edition)`,
+      shortText: `${opp.deadline} (Past)`,
       subtext: 'Deadline has passed',
       urgent: false,
     };
@@ -118,12 +135,14 @@ function formatDeadlineInfo(opp) {
     if (opp.daysRemaining === 0) {
       return {
         text: opp.deadline,
+        shortText: opp.deadline,
         subtext: 'Closes today',
         urgent: false,
       };
     }
     return {
       text: opp.deadline,
+      shortText: opp.deadline,
       subtext: `${opp.daysRemaining} day${
         opp.daysRemaining === 1 ? '' : 's'
       } remaining`,
@@ -132,9 +151,57 @@ function formatDeadlineInfo(opp) {
   }
   return {
     text: opp.deadline,
+    shortText: opp.deadline,
     subtext: null,
     urgent: false,
   };
+}
+
+/**
+ * Create a short 1–2 line summary from an opportunity description so cards and
+ * headers stay quick to scan while the full text remains in expandable details.
+ */
+function getConciseOpportunitySummary(opp) {
+  const raw = String(opp?.description || '').trim();
+  if (!raw) return 'Verified engineering opportunity.';
+  const firstSentenceMatch = raw.match(/^[^.!?]+[.!?]/);
+  const firstSentence = firstSentenceMatch
+    ? firstSentenceMatch[0].trim()
+    : raw;
+  if (firstSentence.length <= 145) {
+    return firstSentence;
+  }
+  const truncated = firstSentence.slice(0, 140).replace(/\s+\S*$/, '');
+  return `${truncated}…`;
+}
+
+/**
+ * Build scannable bullet highlights for the About This Opportunity section.
+ */
+function getOpportunityHighlights(opp) {
+  if (!opp) return [];
+  const highlights = [];
+
+  if (opp.requiredSkills && opp.requiredSkills.length > 0) {
+    highlights.push({
+      label: 'Official Focus',
+      value: opp.requiredSkills.join(' • '),
+    });
+  }
+
+  highlights.push({
+    label: 'Mode & Schedule',
+    value: `${opp.locationMode || 'Online'}${
+      opp.startDate ? ` • Starts ${opp.startDate}` : ''
+    }${opp.deadline ? ` • Deadline ${opp.deadline}` : ' • Rolling / Cohort schedule'}`,
+  });
+
+  highlights.push({
+    label: 'Organizer & Source',
+    value: `${opp.organization} (Verified on ${opp.lastVerifiedAt})`,
+  });
+
+  return highlights;
 }
 
 function getCriterionStatusVisual(status) {
@@ -273,9 +340,9 @@ function getExternalButtonText(opp, isCard = false) {
     return opp.isExpired ? 'View on Unstop' : 'Apply on Unstop';
   }
   if (isCard) {
-    return 'Official Page';
+    return 'Visit Official Page';
   }
-  return opp.isExpired ? 'View Past Edition Archive' : 'Visit Official Page / Apply';
+  return opp.isExpired ? 'Visit Official Page (Archive)' : 'Visit Official Page / Apply';
 }
 
 export default function OpportunitiesView({ onNavigateToProfile }) {
@@ -301,6 +368,7 @@ export default function OpportunitiesView({ onNavigateToProfile }) {
   const [skillAnalysis, setSkillAnalysis] = useState(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisError, setAnalysisError] = useState(null);
+  const [showFullAbout, setShowFullAbout] = useState(false);
   const [showSkillDetails, setShowSkillDetails] = useState(false);
   const [showFullEligibility, setShowFullEligibility] = useState(false);
 
@@ -351,6 +419,7 @@ export default function OpportunitiesView({ onNavigateToProfile }) {
     setSelectedOpportunity(opp);
     setSkillAnalysis(null);
     setAnalysisError(null);
+    setShowFullAbout(false);
     setShowSkillDetails(false);
     setShowFullEligibility(false);
     setDetailLoading(true);
@@ -442,6 +511,8 @@ export default function OpportunitiesView({ onNavigateToProfile }) {
     const opp = selectedOpportunity;
     const deadlineInfo = formatDeadlineInfo(opp);
     const hostedOnUnstop = isUnstopOpportunity(opp);
+    const shortAbout = getConciseOpportunitySummary(opp);
+    const highlights = getOpportunityHighlights(opp);
     const eligibilityText =
       skillAnalysis?.officialEligibility?.information ||
       (opp.officialEligibility && opp.officialEligibility.trim()
@@ -478,6 +549,7 @@ export default function OpportunitiesView({ onNavigateToProfile }) {
               setSelectedOpportunity(null);
               setSkillAnalysis(null);
               setAnalysisError(null);
+              setShowFullAbout(false);
               setShowSkillDetails(false);
               setShowFullEligibility(false);
             }}
@@ -498,11 +570,12 @@ export default function OpportunitiesView({ onNavigateToProfile }) {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2">
               <span
-                className={`text-xs font-semibold px-3 py-1 rounded-full border ${getTypeBadgeStyle(
+                className={`inline-flex items-center gap-1 text-xs font-semibold px-3 py-1 rounded-full border ${getTypeBadgeStyle(
                   opp.type
                 )}`}
               >
-                {opp.type}
+                <span aria-hidden="true">{getTypeIcon(opp.type)}</span>
+                <span>{opp.type}</span>
               </span>
               <span
                 className={`text-xs font-semibold px-3 py-1 rounded-full border ${getStatusBadgeStyle(
@@ -527,74 +600,250 @@ export default function OpportunitiesView({ onNavigateToProfile }) {
             </span>
           </div>
 
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-              {opp.title}
-            </h1>
-            <p className="text-sm sm:text-base text-indigo-300 font-medium mt-1.5">
-              Organized by {opp.organization}
-            </p>
-          </div>
-
-          {/* Key Metadata Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-900/70 border border-slate-700/70 rounded-xl p-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <span className="text-xs uppercase tracking-wider text-slate-400 font-semibold block">
-                Application / Event Deadline
-              </span>
-              <span
-                className={`text-sm font-semibold mt-1 block ${
-                  opp.isExpired ? 'text-rose-400' : 'text-slate-100'
-                }`}
-              >
-                {deadlineInfo.text}
-              </span>
-              {deadlineInfo.subtext && (
-                <span className="text-xs text-slate-400 mt-0.5 block">
-                  {deadlineInfo.subtext}
-                </span>
-              )}
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+                {opp.title}
+              </h1>
+              <p className="text-sm sm:text-base text-indigo-300 font-medium mt-1">
+                Organized by {opp.organization}
+              </p>
             </div>
-
-            <div>
-              <span className="text-xs uppercase tracking-wider text-slate-400 font-semibold block">
-                Location / Mode
-              </span>
-              <span className="text-sm font-semibold text-slate-100 mt-1 block">
-                {opp.locationMode}
-              </span>
-              {opp.startDate && (
-                <span className="text-xs text-slate-400 mt-0.5 block">
-                  Starts: {opp.startDate}
-                </span>
-              )}
-            </div>
-
-            <div>
-              <span className="text-xs uppercase tracking-wider text-slate-400 font-semibold block">
-                Application Status
-              </span>
-              <span className="text-sm font-semibold text-slate-100 mt-1 block">
-                {opp.status}
-              </span>
-              <span className="text-xs text-slate-400 mt-0.5 block">
-                Verified on {opp.lastVerifiedAt}
-              </span>
-            </div>
-          </div>
-
-          {/* Description */}
-          <div className="space-y-2">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-300">
-              About This Opportunity
-            </h2>
-            <p className="text-sm text-slate-300 leading-relaxed">
-              {opp.description}
-            </p>
+            <a
+              href={opp.sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`inline-flex items-center justify-center gap-1.5 text-xs font-semibold px-4 py-2.5 rounded-xl transition-all shadow-sm shrink-0 self-start sm:self-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${
+                opp.isExpired
+                  ? 'bg-slate-700 hover:bg-slate-600 text-slate-200'
+                  : 'bg-indigo-600 hover:bg-indigo-500 text-white'
+              }`}
+            >
+              <span>{getExternalButtonText(opp, false)}</span>
+              <span aria-hidden="true">↗</span>
+            </a>
           </div>
 
           {/* ===================================================================
-              MILESTONE 6 — SECTION A: MY SKILL ANALYSIS (VISUAL-FIRST UX)
+              1. KEY DETAILS SECTION
+             =================================================================== */}
+          <section
+            aria-labelledby="key-details-heading"
+            className="space-y-2.5"
+          >
+            <h2
+              id="key-details-heading"
+              className="text-xs font-bold uppercase tracking-wider text-slate-400"
+            >
+              Key Details
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-slate-900/70 border border-slate-700/70 rounded-xl p-3.5">
+              <div className="p-2.5 rounded-lg bg-slate-950/40 border border-slate-800/80">
+                <span className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold block">
+                  Category
+                </span>
+                <span className="text-sm font-semibold text-slate-100 mt-1 flex items-center gap-1.5">
+                  <span aria-hidden="true">{getTypeIcon(opp.type)}</span>
+                  <span>{opp.type}</span>
+                </span>
+                <span className="text-[11px] text-slate-400 mt-0.5 block truncate">
+                  {opp.organization}
+                </span>
+              </div>
+
+              <div className="p-2.5 rounded-lg bg-slate-950/40 border border-slate-800/80">
+                <span className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold block">
+                  Deadline
+                </span>
+                <span
+                  className={`text-sm font-semibold mt-1 block ${
+                    opp.isExpired ? 'text-rose-400' : 'text-slate-100'
+                  }`}
+                >
+                  {deadlineInfo.text}
+                </span>
+                {deadlineInfo.subtext && (
+                  <span className="text-[11px] text-slate-400 mt-0.5 block">
+                    {deadlineInfo.subtext}
+                  </span>
+                )}
+              </div>
+
+              <div className="p-2.5 rounded-lg bg-slate-950/40 border border-slate-800/80">
+                <span className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold block">
+                  Mode / Location
+                </span>
+                <span className="text-sm font-semibold text-slate-100 mt-1 block">
+                  {opp.locationMode}
+                </span>
+                <span className="text-[11px] text-slate-400 mt-0.5 block">
+                  {opp.startDate
+                    ? `Starts: ${opp.startDate}`
+                    : 'See official schedule'}
+                </span>
+              </div>
+
+              <div className="p-2.5 rounded-lg bg-slate-950/40 border border-slate-800/80">
+                <span className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold block">
+                  Application Status
+                </span>
+                <span className="text-sm font-semibold text-slate-100 mt-1 block">
+                  {opp.status}
+                </span>
+                <span className="text-[11px] text-slate-400 mt-0.5 block">
+                  Verified: {opp.lastVerifiedAt}
+                </span>
+              </div>
+            </div>
+          </section>
+
+          {/* ===================================================================
+              2. ABOUT THIS OPPORTUNITY SECTION (CONCISE + BULLETS + EXPANDABLE)
+             =================================================================== */}
+          <section
+            aria-labelledby="about-opportunity-heading"
+            className="p-4 sm:p-5 rounded-2xl bg-slate-900/60 border border-slate-700/70 space-y-3"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <h2
+                id="about-opportunity-heading"
+                className="text-sm sm:text-base font-bold text-white"
+              >
+                About This Opportunity
+              </h2>
+              <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                Quick Overview
+              </span>
+            </div>
+
+            {/* Short 1-2 line summary */}
+            <p className="text-xs sm:text-sm text-slate-200 font-medium leading-relaxed">
+              {shortAbout}
+            </p>
+
+            {/* Scannable Bullet Highlights */}
+            <ul className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1">
+              {highlights.map((item) => (
+                <li
+                  key={item.label}
+                  className="p-2.5 rounded-xl bg-slate-950/50 border border-slate-800/80 text-xs"
+                >
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-300 block">
+                    {item.label}
+                  </span>
+                  <span className="text-slate-300 mt-0.5 block leading-snug">
+                    {item.value}
+                  </span>
+                </li>
+              ))}
+            </ul>
+
+            {/* Expandable Full Description when longer than summary */}
+            {opp.description && opp.description.length > shortAbout.length && (
+              <div className="pt-1">
+                <button
+                  type="button"
+                  aria-expanded={showFullAbout}
+                  aria-controls="about-opportunity-details-panel"
+                  onClick={() => setShowFullAbout((prev) => !prev)}
+                  className="text-xs font-semibold text-indigo-300 hover:text-indigo-200 inline-flex items-center gap-1.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 rounded px-1 py-0.5"
+                >
+                  <span>
+                    {showFullAbout
+                      ? 'Hide full verified description ▲'
+                      : 'Read full verified description ▼'}
+                  </span>
+                </button>
+                {showFullAbout && (
+                  <div
+                    id="about-opportunity-details-panel"
+                    role="region"
+                    aria-label="Full opportunity description"
+                    className="mt-2 p-3.5 rounded-xl bg-slate-950/60 border border-slate-800 text-xs sm:text-sm text-slate-300 leading-relaxed"
+                  >
+                    {opp.description}
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+
+          {/* ===================================================================
+              3. WHY RECOMMENDED FOR YOU SECTION (SEPARATE FROM ELIGIBILITY)
+             =================================================================== */}
+          <section
+            aria-labelledby="why-recommended-heading"
+            className="p-4 sm:p-5 rounded-2xl bg-indigo-950/20 border border-indigo-500/30 space-y-3"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2
+                  id="why-recommended-heading"
+                  className="text-sm sm:text-base font-bold text-white"
+                >
+                  Why Recommended for You
+                </h2>
+                <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
+                  {opp.isRecommended && !opp.isExpired
+                    ? '★ Matches Your Profile'
+                    : 'Profile Relevance Check'}
+                </span>
+              </div>
+              <span className="text-[11px] text-slate-400">
+                Relevance suggestion only — not official eligibility
+              </span>
+            </div>
+
+            {opp.isRecommended && !opp.isExpired ? (
+              <div className="space-y-2.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  {(opp.matchedKnowsSkills || []).map((skill) => (
+                    <span
+                      key={`rec-know-${skill}`}
+                      className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-200 border border-emerald-500/35 font-medium"
+                    >
+                      <span aria-hidden="true">✓</span>
+                      <span>Knows: {skill}</span>
+                    </span>
+                  ))}
+                  {(opp.matchedLearningSkills || []).map((skill) => (
+                    <span
+                      key={`rec-learn-${skill}`}
+                      className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg bg-amber-500/15 text-amber-200 border border-amber-500/35 font-medium"
+                    >
+                      <span aria-hidden="true">◐</span>
+                      <span>Learning: {skill}</span>
+                    </span>
+                  ))}
+                  {(opp.matchedInterests || []).map((interest) => (
+                    <span
+                      key={`rec-int-${interest}`}
+                      className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg bg-indigo-500/15 text-indigo-200 border border-indigo-500/35 font-medium"
+                    >
+                      <span aria-hidden="true">✦</span>
+                      <span>Interest: {interest}</span>
+                    </span>
+                  ))}
+                </div>
+                <p className="text-xs text-slate-300">
+                  Suggested because your saved profile aligns with the tags
+                  above. Always verify official rules in the Official
+                  Eligibility section below.
+                </p>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-300">
+                {opp.isExpired
+                  ? 'This is a past edition whose deadline has passed, so it is not included in active profile recommendations.'
+                  : !studentContext.hasSkillsOrInterests
+                  ? 'Add skills or career interests in your Profile to see personalized match badges here.'
+                  : 'Viewed from Explore All — your current saved profile tags do not directly overlap with this opportunity yet, but you can explore its skills and eligibility below.'}
+              </p>
+            )}
+          </section>
+
+          {/* ===================================================================
+              4. SKILLS & MY SKILL ANALYSIS SECTION (VISUAL-FIRST UX)
              =================================================================== */}
           <section
             aria-labelledby="skill-analysis-heading"
@@ -608,7 +857,7 @@ export default function OpportunitiesView({ onNavigateToProfile }) {
                     id="skill-analysis-heading"
                     className="text-base sm:text-lg font-extrabold text-white tracking-tight"
                   >
-                    My Skill Analysis
+                    Skills & My Skill Analysis
                   </h2>
                   <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
                     <span aria-hidden="true">✦</span>
@@ -1216,25 +1465,41 @@ export default function OpportunitiesView({ onNavigateToProfile }) {
             </div>
           </section>
 
-          {/* External Application Call to Action */}
-          <div className="pt-2 border-t border-slate-700/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="text-xs text-slate-400 space-y-0.5">
-              <p className="text-slate-300 font-medium">
+          {/* ===================================================================
+              6. VISIT OFFICIAL PAGE / APPLY SECTION
+             =================================================================== */}
+          <section
+            aria-labelledby="apply-section-heading"
+            className="p-4 sm:p-5 rounded-2xl bg-slate-900/90 border border-slate-700/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+          >
+            <div className="space-y-1.5 min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2
+                  id="apply-section-heading"
+                  className="text-sm sm:text-base font-bold text-white"
+                >
+                  Visit Official Page / Apply
+                </h2>
+                <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                  {hostedOnUnstop ? 'Official Unstop Listing' : 'Official Organizer Portal'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-300">
                 {hostedOnUnstop
-                  ? 'Applications for this opportunity are submitted directly on its official Unstop listing page.'
-                  : 'Applications are submitted directly on the official organizer website.'}
+                  ? 'Submit your application directly on the official Unstop opportunity page.'
+                  : 'Submit your application and confirm final rules directly on the organizer website.'}
               </p>
-              <p className="truncate max-w-md text-slate-400">
-                Official URL: {opp.sourceUrl}
+              <p className="text-xs text-slate-400 font-mono truncate max-w-lg">
+                {opp.sourceUrl}
               </p>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2.5 shrink-0">
               <a
                 href={opp.sourceUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={`inline-flex items-center justify-center gap-2 text-sm font-semibold px-5 py-2.5 rounded-xl transition-all shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${
+                className={`inline-flex items-center justify-center gap-2 text-xs sm:text-sm font-semibold px-5 py-2.5 rounded-xl transition-all shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${
                   opp.isExpired
                     ? 'bg-slate-700 hover:bg-slate-600 text-slate-200'
                     : 'bg-indigo-600 hover:bg-indigo-500 text-white'
@@ -1244,7 +1509,7 @@ export default function OpportunitiesView({ onNavigateToProfile }) {
                 <span aria-hidden="true">↗</span>
               </a>
             </div>
-          </div>
+          </section>
         </div>
       </div>
     );
@@ -1256,11 +1521,17 @@ export default function OpportunitiesView({ onNavigateToProfile }) {
   const renderOpportunityCard = (opp, isRecommendedCard = false) => {
     const deadlineInfo = formatDeadlineInfo(opp);
     const hostedOnUnstop = isUnstopOpportunity(opp);
+    const shortSummary = getConciseOpportunitySummary(opp);
+    const matchedKnows = opp.matchedKnowsSkills || [];
+    const matchedLearning = opp.matchedLearningSkills || [];
+    const matchedInterests = opp.matchedInterests || [];
+    const suggestedList = opp.suggestedSkills || [];
+    const focusList = opp.requiredSkills || [];
 
     return (
-      <div
+      <article
         key={`${isRecommendedCard ? 'rec' : 'all'}-${opp.id}`}
-        className={`rounded-2xl border p-5 flex flex-col justify-between transition-all ${
+        className={`rounded-2xl border p-4 sm:p-5 flex flex-col justify-between transition-all ${
           opp.isExpired
             ? 'bg-slate-800/40 border-slate-800 opacity-80'
             : isRecommendedCard
@@ -1268,16 +1539,17 @@ export default function OpportunitiesView({ onNavigateToProfile }) {
             : 'bg-slate-800/80 border-slate-700/80 hover:border-slate-600 shadow-md'
         }`}
       >
-        <div className="space-y-3.5">
-          {/* Top badges */}
-          <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="space-y-3">
+          {/* 1. Category, Status & Platform Badges */}
+          <div className="flex flex-wrap items-center justify-between gap-1.5">
             <div className="flex flex-wrap items-center gap-1.5">
               <span
-                className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${getTypeBadgeStyle(
+                className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${getTypeBadgeStyle(
                   opp.type
                 )}`}
               >
-                {opp.type}
+                <span aria-hidden="true">{getTypeIcon(opp.type)}</span>
+                <span>{opp.type}</span>
               </span>
               <span
                 className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${getStatusBadgeStyle(
@@ -1292,138 +1564,194 @@ export default function OpportunitiesView({ onNavigateToProfile }) {
                 </span>
               )}
             </div>
-            <span className="text-[11px] text-slate-400">
-              {opp.locationMode}
-            </span>
+            {opp.isRecommended && !opp.isExpired && (
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/35">
+                ★ Recommended
+              </span>
+            )}
           </div>
 
-          {/* Title & Organizer */}
+          {/* 2. Title & Organization */}
           <div>
             <h3 className="text-base font-bold text-white leading-snug">
               {opp.title}
             </h3>
-            <p className="text-xs text-indigo-300 font-medium mt-1">
+            <p className="text-xs text-indigo-300 font-medium mt-0.5">
               {opp.organization}
             </p>
           </div>
 
-          {/* Short Description */}
-          <p className="text-xs text-slate-300 line-clamp-3 leading-relaxed">
-            {opp.description}
+          {/* 3. Compact Mode/Location & Deadline Strip */}
+          <div className="grid grid-cols-2 gap-2 p-2.5 rounded-xl bg-slate-900/70 border border-slate-700/60 text-[11px]">
+            <div className="min-w-0">
+              <span className="text-slate-400 block text-[10px] uppercase tracking-wider font-semibold">
+                Mode / Location
+              </span>
+              <span className="text-slate-200 font-medium truncate block mt-0.5">
+                {opp.locationMode}
+              </span>
+            </div>
+            <div className="min-w-0">
+              <span className="text-slate-400 block text-[10px] uppercase tracking-wider font-semibold">
+                Deadline
+              </span>
+              <span
+                className={`font-semibold truncate block mt-0.5 ${
+                  opp.isExpired ? 'text-rose-400' : 'text-slate-200'
+                }`}
+              >
+                {deadlineInfo.shortText}
+              </span>
+            </div>
+          </div>
+
+          {/* 4. Short 1–2 Line Summary */}
+          <p className="text-xs text-slate-300 line-clamp-2 leading-relaxed">
+            {shortSummary}
           </p>
 
-          {/* Relevance Reason Callout */}
-          {opp.isRecommended && opp.relevanceReason && (
-            <div className="p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/25 text-[11px] text-indigo-200 leading-relaxed">
-              <strong className="text-indigo-300">Suggested for you: </strong>
-              {opp.relevanceReason}
+          {/* 5. Compact Recommendation Chips (Distinct from Official Eligibility) */}
+          {opp.isRecommended && !opp.isExpired && (
+            <div className="px-2.5 py-2 rounded-xl bg-indigo-500/10 border border-indigo-500/25 flex flex-wrap items-center gap-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-300 mr-0.5">
+                ★ Profile Match:
+              </span>
+              {matchedKnows.slice(0, 3).map((s) => (
+                <span
+                  key={`card-know-${s}`}
+                  className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-200 border border-emerald-500/30 font-medium"
+                >
+                  ✓ {s}
+                </span>
+              ))}
+              {matchedLearning.slice(0, 2).map((s) => (
+                <span
+                  key={`card-learn-${s}`}
+                  className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-200 border border-amber-500/30 font-medium"
+                >
+                  ◐ {s}
+                </span>
+              ))}
+              {matchedKnows.length === 0 &&
+                matchedLearning.length === 0 &&
+                matchedInterests.slice(0, 2).map((intItem) => (
+                  <span
+                    key={`card-int-${intItem}`}
+                    className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-200 border border-indigo-500/30 font-medium"
+                  >
+                    ✦ {intItem}
+                  </span>
+                ))}
             </div>
           )}
 
-          {/* Skills Preview (Official vs Suggested clearly labeled) */}
-          <div className="space-y-2 pt-1">
+          {/* 6. Key Skills as Chips (Suggested Skills & Official Focus Kept Distinct) */}
+          <div className="space-y-2 pt-0.5">
             <div>
-              <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold block mb-1">
-                Official Focus Areas:
-              </span>
-              <div className="flex flex-wrap gap-1.5">
-                {(opp.requiredSkills || []).slice(0, 3).map((skill) => (
-                  <span
-                    key={skill}
-                    className="text-[11px] px-2 py-0.5 rounded bg-slate-900/90 text-slate-300 border border-slate-700"
-                  >
-                    {skill}
-                  </span>
-                ))}
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
+                  Suggested Skills
+                </span>
+                <span className="text-[10px] text-slate-500">
+                  ✓ Knows · ◐ Learning
+                </span>
               </div>
-            </div>
-
-            <div>
-              <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold block mb-1">
-                Suggested Technical Skills:
-              </span>
               <div className="flex flex-wrap gap-1.5">
-                {(opp.suggestedSkills || []).slice(0, 5).map((skill) => {
+                {suggestedList.slice(0, 4).map((skill) => {
                   const matchType = getStudentSkillBadge(skill, opp);
                   return (
                     <span
                       key={skill}
-                      className={`text-[11px] px-2 py-0.5 rounded border ${
+                      className={`text-[11px] px-2 py-0.5 rounded-md border inline-flex items-center gap-1 ${
                         matchType === 'knows'
-                          ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30 font-medium'
+                          ? 'bg-emerald-500/15 text-emerald-200 border-emerald-500/35 font-medium'
                           : matchType === 'learning'
-                          ? 'bg-amber-500/15 text-amber-300 border-amber-500/30 font-medium'
-                          : 'bg-slate-900/50 text-slate-400 border-slate-700/70'
+                          ? 'bg-amber-500/15 text-amber-200 border-amber-500/35 font-medium'
+                          : 'bg-slate-900/60 text-slate-300 border-slate-700/80'
                       }`}
                     >
-                      {skill}
+                      {matchType === 'knows' && (
+                        <span aria-hidden="true" className="text-emerald-300">
+                          ✓
+                        </span>
+                      )}
+                      {matchType === 'learning' && (
+                        <span aria-hidden="true" className="text-amber-300">
+                          ◐
+                        </span>
+                      )}
+                      <span>{skill}</span>
                     </span>
                   );
                 })}
+                {suggestedList.length > 4 && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-md bg-slate-900 text-slate-400 border border-slate-800">
+                    +{suggestedList.length - 4} more
+                  </span>
+                )}
               </div>
             </div>
+
+            {focusList.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
+                  Focus:
+                </span>
+                {focusList.slice(0, 2).map((focus) => (
+                  <span
+                    key={focus}
+                    className="text-[10px] px-2 py-0.5 rounded bg-slate-900/90 text-slate-300 border border-slate-700/80"
+                  >
+                    {focus}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Footer: Deadline & Actions */}
-        <div className="mt-5 pt-3.5 border-t border-slate-700/70 flex flex-col gap-3">
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-slate-400">Deadline:</span>
-            <span
-              className={`font-medium ${
-                opp.isExpired
-                  ? 'text-rose-400'
-                  : deadlineInfo.urgent
-                  ? 'text-amber-300'
-                  : 'text-slate-200'
-              }`}
-            >
-              {deadlineInfo.text}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => handleOpenDetails(opp)}
-              className="flex-1 text-xs font-semibold px-3 py-2 rounded-xl bg-slate-700/80 hover:bg-slate-700 text-white border border-slate-600 transition-colors cursor-pointer"
-            >
-              View Details & Eligibility
-            </button>
-            <a
-              href={opp.sourceUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs font-semibold px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white transition-colors inline-flex items-center gap-1"
-            >
-              <span>{getExternalButtonText(opp, true)}</span>
-              <span>↗</span>
-            </a>
-          </div>
+        {/* 7. Action Buttons: View Details & Visit Official Page */}
+        <div className="mt-4 pt-3 border-t border-slate-700/70 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => handleOpenDetails(opp)}
+            className="flex-1 text-xs font-semibold px-3 py-2 rounded-xl bg-slate-700/80 hover:bg-slate-700 text-white border border-slate-600 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+          >
+            View Details
+          </button>
+          <a
+            href={opp.sourceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs font-semibold px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white transition-colors inline-flex items-center gap-1 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+          >
+            <span>{getExternalButtonText(opp, true)}</span>
+            <span aria-hidden="true">↗</span>
+          </a>
         </div>
-      </div>
+      </article>
     );
   };
 
   return (
     <div className="space-y-8">
       {/* Page Hero & Filter Bar */}
-      <div className="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-6 shadow-lg space-y-5">
+      <div className="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-5 sm:p-6 shadow-lg space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
-                Milestone 5
+                Verified Opportunities
               </span>
               <span className="text-xs text-slate-400">
-                Individually Verified Engineering Opportunities
+                Hackathons · Internships · Competitions · Workshops
               </span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white mt-2">
-              Discover Hackathons, Internships, Competitions & Workshops
+            <h1 className="text-xl sm:text-2xl font-extrabold text-white">
+              Opportunity Discovery & Skill Matching
             </h1>
-            <p className="text-xs sm:text-sm text-slate-400 mt-1">
-              Explore verified technical opportunities with transparent eligibility rules, required vs. suggested skills, and direct links to official organizer pages.
+            <p className="text-xs text-slate-400">
+              Compare your profile skills, check official eligibility criteria, and apply on official organizer pages.
             </p>
           </div>
 
@@ -1432,30 +1760,30 @@ export default function OpportunitiesView({ onNavigateToProfile }) {
             <button
               type="button"
               onClick={() => setActiveSection('all')}
-              className={`text-xs px-3.5 py-2 rounded-lg font-semibold transition-all cursor-pointer ${
+              className={`text-xs px-3.5 py-2 rounded-lg font-semibold transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${
                 activeSection === 'all'
                   ? 'bg-indigo-600 text-white shadow-sm'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              Recommended + Explore All
+              Recommended + All
             </button>
             <button
               type="button"
               onClick={() => setActiveSection('recommended')}
-              className={`text-xs px-3.5 py-2 rounded-lg font-semibold transition-all cursor-pointer ${
+              className={`text-xs px-3.5 py-2 rounded-lg font-semibold transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${
                 activeSection === 'recommended'
                   ? 'bg-indigo-600 text-white shadow-sm'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              Recommended Only ({recommendedOpportunities.length})
+              Recommended ({recommendedOpportunities.length})
             </button>
           </div>
         </div>
 
         {/* Filter Controls */}
-        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 pt-2 border-t border-slate-700/70">
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 pt-3 border-t border-slate-700/70">
           {/* Category Pills */}
           <div className="flex flex-wrap items-center gap-2">
             {CATEGORY_OPTIONS.map((cat) => (
@@ -1463,7 +1791,7 @@ export default function OpportunitiesView({ onNavigateToProfile }) {
                 key={cat.value}
                 type="button"
                 onClick={() => setSelectedCategory(cat.value)}
-                className={`text-xs px-3.5 py-1.5 rounded-xl font-medium border transition-all cursor-pointer ${
+                className={`text-xs px-3.5 py-1.5 rounded-xl font-medium border transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${
                   selectedCategory === cat.value
                     ? 'bg-indigo-600 text-white border-indigo-500 shadow-sm'
                     : 'bg-slate-900/70 text-slate-300 border-slate-700 hover:border-slate-500'
@@ -1482,12 +1810,14 @@ export default function OpportunitiesView({ onNavigateToProfile }) {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search title, organizer, skill..."
+                aria-label="Search opportunities by title, organizer, or skill"
                 className="w-full text-xs bg-slate-900/90 border border-slate-700 focus:border-indigo-500 rounded-xl px-3.5 py-2 text-slate-100 placeholder-slate-500 focus:outline-none"
               />
               {searchTerm && (
                 <button
                   type="button"
                   onClick={() => setSearchTerm('')}
+                  aria-label="Clear search"
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-white cursor-pointer"
                 >
                   ✕
@@ -1533,13 +1863,13 @@ export default function OpportunitiesView({ onNavigateToProfile }) {
               <div>
                 <h2 className="text-lg font-bold text-white flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-indigo-400"></span>
-                  <span>Recommended for Your Profile & Skills</span>
+                  <span>Recommended for You</span>
                   <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
                     {recommendedOpportunities.length}
                   </span>
                 </h2>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Relevance suggestions based on your saved skills and interests — not official eligibility confirmations.
+                  Matched to your saved skills & interests — profile relevance only, not official eligibility.
                 </p>
               </div>
               {onNavigateToProfile && (
@@ -1548,19 +1878,19 @@ export default function OpportunitiesView({ onNavigateToProfile }) {
                   onClick={onNavigateToProfile}
                   className="text-xs text-indigo-400 hover:text-indigo-300 font-medium self-start sm:self-auto cursor-pointer"
                 >
-                  Update My Profile & Skills →
+                  Update Profile Skills →
                 </button>
               )}
             </div>
 
             {!studentContext.hasSkillsOrInterests ? (
-              <div className="bg-slate-800/60 border border-slate-700/80 rounded-2xl p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="bg-slate-800/60 border border-slate-700/80 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div className="space-y-1">
                   <h3 className="text-sm font-bold text-white">
-                    Add skills or interests to unlock personalized opportunity suggestions
+                    Add skills or interests for personalized recommendations
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Your profile currently has no saved skills or interests. Add skills you know or are learning in your Profile to see relevant hackathons, internships, and workshops here.
+                    Save skills you know or are learning in your Profile to highlight matching opportunities here.
                   </p>
                 </div>
                 {onNavigateToProfile && (
@@ -1569,22 +1899,24 @@ export default function OpportunitiesView({ onNavigateToProfile }) {
                     onClick={onNavigateToProfile}
                     className="text-xs font-semibold px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shrink-0 cursor-pointer"
                   >
-                    Go to My Profile & Skills
+                    Go to My Profile
                   </button>
                 )}
               </div>
             ) : recommendedOpportunities.length === 0 ? (
-              <div className="bg-slate-800/50 border border-slate-700/70 rounded-2xl p-6 text-center space-y-2">
+              <div className="bg-slate-800/50 border border-slate-700/70 rounded-2xl p-6 text-center space-y-1.5">
                 <p className="text-sm text-slate-300 font-medium">
-                  No recommended opportunities match the current filter criteria.
+                  No recommended opportunities match the current filter.
                 </p>
                 <p className="text-xs text-slate-400">
-                  Try switching the category filter to &ldquo;All Types&rdquo; or clearing the search box below.
+                  Switch to &ldquo;All Types&rdquo; or clear the search box to see more.
                 </p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                {recommendedOpportunities.map((opp) => renderOpportunityCard(opp, true))}
+                {recommendedOpportunities.map((opp) =>
+                  renderOpportunityCard(opp, true)
+                )}
               </div>
             )}
           </section>
@@ -1592,19 +1924,17 @@ export default function OpportunitiesView({ onNavigateToProfile }) {
           {/* SECTION 2: EXPLORE ALL VERIFIED OPPORTUNITIES */}
           {activeSection === 'all' && (
             <section className="space-y-4 pt-4 border-t border-slate-800">
-              <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2">
-                <div>
-                  <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-                    <span>Explore All Verified Opportunities</span>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
-                      {filteredOpportunities.length}
-                    </span>
-                  </h2>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    Includes individual event editions and year-round technical programs verified against official organizer pages.
-                  </p>
-                </div>
+              <div>
+                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                  <span>Explore All Opportunities</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                    {filteredOpportunities.length}
+                  </span>
+                </h2>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Individually verified event editions and technical programs with official links.
+                </p>
               </div>
 
               {filteredOpportunities.length === 0 ? (
@@ -1626,7 +1956,9 @@ export default function OpportunitiesView({ onNavigateToProfile }) {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                  {filteredOpportunities.map((opp) => renderOpportunityCard(opp, false))}
+                  {filteredOpportunities.map((opp) =>
+                    renderOpportunityCard(opp, false)
+                  )}
                 </div>
               )}
             </section>
@@ -1645,14 +1977,15 @@ export default function OpportunitiesView({ onNavigateToProfile }) {
                   </span>
                 </div>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  General portals and directories where you can browse additional hackathons, internships, and competitions. Kept separate from individual verified opportunities above.
+                  Browse broader directories for additional hackathons, internships, and competitions.
                 </p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {explorePlatforms.map((platform) => {
                   const isUnstopPlatform =
-                    platform.id === 'platform-unstop' || platform.name === 'Unstop';
+                    platform.id === 'platform-unstop' ||
+                    platform.name === 'Unstop';
                   const ctaText =
                     platform.buttonLabel ||
                     (isUnstopPlatform ? 'Explore Unstop' : 'Visit Directory');
@@ -1669,7 +2002,7 @@ export default function OpportunitiesView({ onNavigateToProfile }) {
                           : 'bg-slate-800/50 hover:bg-slate-800 border-slate-700/70 hover:border-slate-600'
                       }`}
                     >
-                      <div className="space-y-2">
+                      <div className="space-y-1.5">
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700 inline-block">
                             {platform.category}
@@ -1681,13 +2014,13 @@ export default function OpportunitiesView({ onNavigateToProfile }) {
                         <h3 className="text-sm font-bold text-white group-hover:text-indigo-300 transition-colors">
                           {platform.name}
                         </h3>
-                        <p className="text-xs text-slate-400 leading-relaxed">
+                        <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
                           {platform.description}
                         </p>
                       </div>
                       <div className="mt-3 pt-2.5 border-t border-slate-700/50 flex items-center justify-between text-xs text-indigo-400 group-hover:text-indigo-300 font-semibold">
                         <span>{ctaText}</span>
-                        <span>↗</span>
+                        <span aria-hidden="true">↗</span>
                       </div>
                     </a>
                   );
