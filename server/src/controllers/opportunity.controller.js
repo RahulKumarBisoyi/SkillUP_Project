@@ -163,7 +163,16 @@ function evaluateRelevance(opp, userSkills, profile) {
 
     const matchesSkill = allOppSkills.some((oppSkill) => skillsMatch(interest, oppSkill));
     const matchesText = searchableText.includes(normInterest);
-    if (matchesSkill || matchesText) {
+    const matchesTypeOrDomain =
+      (normInterest.includes('hackathon') && opp.type === 'Hackathon') ||
+      (normInterest.includes('internship') && opp.type === 'Internship') ||
+      (normInterest.includes('competitive programm') && opp.type === 'Competition') ||
+      (normInterest.includes('open source') && searchableText.includes('open source')) ||
+      (normInterest.includes('machine learning') && searchableText.includes('machine learning')) ||
+      (normInterest.includes('cloud') && searchableText.includes('cloud')) ||
+      (normInterest.includes('full-stack') && searchableText.includes('web development'));
+
+    if (matchesSkill || matchesText || matchesTypeOrDomain) {
       matchedInterestsSet.add(interest);
     }
   }

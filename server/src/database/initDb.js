@@ -78,6 +78,85 @@ export async function migrateLearningTracksOpportunityColumns(connection, databa
   }
 }
 
+import {
+  getCanonicalSkillKey,
+  getFullSkillCatalog,
+  normalizeSkillString,
+  resolveCanonicalCatalogSkill,
+} from '../services/skillAnalysis.service.js';
+
+/**
+ * Safe, transactional, idempotent normalization of existing `user_skills` rows.
+ * - Normalizes genuine aliases (e.g., "JS" -> "JavaScript", "py" -> "Python") to their canonical display name.
+ * - If both an alias and its canonical name exist for the same student, merges them into a single row
+ *   and preserves status = 'Knows' if either entry was 'Knows'.
+ * - Preserves any pre-existing legacy non-catalog skills without deleting them.
+ */
+export async function migrateNormalizeExistingUserSkills(connection) {
+  const skillCatalog = await getFullSkillCatalog(connection);
+  const [users] = await connection.query(`SELECT DISTINCT user_id FROM user_skills`);
+
+  for (const { user_id: userId } of users) {
+    await connection.beginTransaction();
+    try {
+      const [rows] = await connection.query(
+        `SELECT id, skill, status FROM user_skills WHERE user_id = ? ORDER BY id ASC FOR UPDATE`,
+        [userId]
+      );
+
+      const dedupMap = new Map();
+      let needsUpdate = false;
+
+      for (const row of rows) {
+        const rawSkill = String(row.skill || '').trim();
+        if (!rawSkill) {
+          needsUpdate = true;
+          continue;
+        }
+
+        const status = row.status === 'Knows' ? 'Knows' : 'Learning';
+        const catalogMatch = resolveCanonicalCatalogSkill(rawSkill, skillCatalog);
+        const canonicalName = catalogMatch ? catalogMatch.name : rawSkill;
+        const dedupKey = catalogMatch
+          ? getCanonicalSkillKey(catalogMatch.name)
+          : normalizeSkillString(rawSkill);
+
+        if (canonicalName !== row.skill) {
+          needsUpdate = true;
+        }
+
+        if (dedupMap.has(dedupKey)) {
+          needsUpdate = true;
+          const existing = dedupMap.get(dedupKey);
+          if (status === 'Knows' && existing.status !== 'Knows') {
+            existing.status = 'Knows';
+          }
+        } else {
+          dedupMap.set(dedupKey, {
+            skill: canonicalName,
+            status,
+          });
+        }
+      }
+
+      if (needsUpdate) {
+        await connection.query(`DELETE FROM user_skills WHERE user_id = ?`, [userId]);
+        for (const item of dedupMap.values()) {
+          await connection.query(
+            `INSERT INTO user_skills (user_id, skill, status) VALUES (?, ?, ?)`,
+            [userId, item.skill, item.status]
+          );
+        }
+      }
+
+      await connection.commit();
+    } catch (err) {
+      await connection.rollback();
+      throw err;
+    }
+  }
+}
+
 export async function initDatabase() {
   const host = process.env.DB_HOST || 'localhost';
   const port = parseInt(process.env.DB_PORT || '3306', 10);
@@ -116,6 +195,9 @@ export async function initDatabase() {
     const seededCount = await seedOpportunities(connection);
     console.log(`[Database Init] Upserted ${seededCount} verified opportunities.`);
 
+    console.log('[Database Init] Normalizing and deduplicating existing user_skills aliases...');
+    await migrateNormalizeExistingUserSkills(connection);
+
     console.log('[Database Init] Database schema and seed data initialized successfully!');
   } catch (error) {
     console.error('[Database Init Error] Failed to initialize database:', error.message);
@@ -131,5 +213,6 @@ export async function initDatabase() {
 if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(__filename)) {
   initDatabase();
 }
+
 
 

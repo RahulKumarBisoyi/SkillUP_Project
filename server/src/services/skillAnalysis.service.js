@@ -115,7 +115,212 @@ const STRICT_ALIAS_TO_CANONICAL = new Map([
   ['operating systems', 'operating systems'],
   ['operating system', 'operating systems'],
   ['os', 'operating systems'],
+
+  // AWS (distinct from general Cloud Computing)
+  ['aws', 'aws'],
+  ['amazon web services', 'aws'],
+
+  // Cloud (general Cloud Computing, distinct from AWS)
+  ['cloud', 'cloud'],
+  ['cloud computing', 'cloud'],
+
+  // Linux
+  ['linux', 'linux'],
+  ['gnu/linux', 'linux'],
 ]);
+
+/**
+ * Authoritative Predefined Skill Catalog shared across Profile Skill Picker,
+ * Learning Resource Discovery, Opportunity Recommendations, Milestone 6 Skill
+ * Analysis, and Milestone 7 Bridge My Skill Gap.
+ */
+export const PREDEFINED_SKILL_CATALOG = [
+  // 1. Programming Languages
+  {
+    name: 'Python',
+    category: 'Programming Languages',
+    aliases: ['Py', 'Python 3', 'Python3'],
+    isLearningTopic: true,
+  },
+  {
+    name: 'JavaScript',
+    category: 'Programming Languages',
+    aliases: ['JS', 'ECMAScript'],
+    isLearningTopic: true,
+  },
+  {
+    name: 'TypeScript',
+    category: 'Programming Languages',
+    aliases: ['TS'],
+    isLearningTopic: false,
+  },
+  {
+    name: 'C++',
+    category: 'Programming Languages',
+    aliases: ['CPP', 'C Plus Plus'],
+    isLearningTopic: false,
+  },
+  {
+    name: 'Java',
+    category: 'Programming Languages',
+    aliases: [],
+    isLearningTopic: false,
+  },
+  {
+    name: 'C#',
+    category: 'Programming Languages',
+    aliases: ['CSharp', 'C Sharp'],
+    isLearningTopic: false,
+  },
+
+  // 2. Data Structures & Algorithms
+  {
+    name: 'DSA',
+    category: 'Data Structures & Algorithms',
+    aliases: ['Data Structures and Algorithms', 'Data Structures & Algorithms'],
+    isLearningTopic: false,
+  },
+  {
+    name: 'DSA in C++',
+    category: 'Data Structures & Algorithms',
+    aliases: [
+      'Data Structures and Algorithms in C++',
+      'Data Structures & Algorithms in C++',
+    ],
+    isLearningTopic: true,
+  },
+  {
+    name: 'DSA in Java',
+    category: 'Data Structures & Algorithms',
+    aliases: [
+      'Data Structures and Algorithms in Java',
+      'Data Structures & Algorithms in Java',
+    ],
+    isLearningTopic: true,
+  },
+
+  // 3. Web & Application Development
+  {
+    name: 'Web Development',
+    category: 'Web & Application Development',
+    aliases: [],
+    isLearningTopic: true,
+  },
+  {
+    name: 'Full-Stack Web Development',
+    category: 'Web & Application Development',
+    aliases: [],
+    isLearningTopic: false,
+  },
+  {
+    name: 'React',
+    category: 'Web & Application Development',
+    aliases: ['ReactJS', 'React.js'],
+    isLearningTopic: true,
+  },
+  {
+    name: 'Node.js',
+    category: 'Web & Application Development',
+    aliases: ['NodeJS'],
+    isLearningTopic: false,
+  },
+  {
+    name: 'HTML',
+    category: 'Web & Application Development',
+    aliases: [],
+    isLearningTopic: false,
+  },
+  {
+    name: 'CSS',
+    category: 'Web & Application Development',
+    aliases: [],
+    isLearningTopic: false,
+  },
+
+  // 4. Databases & Data
+  {
+    name: 'SQL & DBMS',
+    category: 'Databases & Data',
+    aliases: ['SQL and DBMS', 'DBMS & SQL', 'DBMS and SQL'],
+    isLearningTopic: true,
+  },
+  {
+    name: 'SQL',
+    category: 'Databases & Data',
+    aliases: ['Structured Query Language'],
+    isLearningTopic: false,
+  },
+  {
+    name: 'DBMS',
+    category: 'Databases & Data',
+    aliases: ['Database Management Systems', 'Database Management System'],
+    isLearningTopic: false,
+  },
+  {
+    name: 'MySQL',
+    category: 'Databases & Data',
+    aliases: [],
+    isLearningTopic: false,
+  },
+  {
+    name: 'MongoDB',
+    category: 'Databases & Data',
+    aliases: [],
+    isLearningTopic: false,
+  },
+
+  // 5. AI, Cloud & Systems
+  {
+    name: 'Machine Learning',
+    category: 'AI, Cloud & Systems',
+    aliases: ['ML'],
+    isLearningTopic: true,
+  },
+  {
+    name: 'Operating Systems',
+    category: 'AI, Cloud & Systems',
+    aliases: ['OS', 'Operating System'],
+    isLearningTopic: true,
+  },
+  {
+    name: 'Linux',
+    category: 'AI, Cloud & Systems',
+    aliases: ['GNU/Linux'],
+    isLearningTopic: false,
+  },
+  {
+    name: 'Cloud',
+    category: 'AI, Cloud & Systems',
+    aliases: ['Cloud Computing'],
+    isLearningTopic: false,
+  },
+  {
+    name: 'AWS',
+    category: 'AI, Cloud & Systems',
+    aliases: ['Amazon Web Services'],
+    isLearningTopic: false,
+  },
+
+  // 6. Developer Tools & DevOps
+  {
+    name: 'Git',
+    category: 'Developer Tools & DevOps',
+    aliases: [],
+    isLearningTopic: false,
+  },
+  {
+    name: 'GitHub',
+    category: 'Developer Tools & DevOps',
+    aliases: [],
+    isLearningTopic: false,
+  },
+  {
+    name: 'Docker',
+    category: 'Developer Tools & DevOps',
+    aliases: [],
+    isLearningTopic: false,
+  },
+];
 
 /**
  * Normalize whitespace and case of a raw skill string.
@@ -145,6 +350,582 @@ export function areSkillsEquivalent(skillA, skillB) {
   const keyB = getCanonicalSkillKey(skillB);
   if (!keyA || !keyB) return false;
   return keyA === keyB;
+}
+
+/**
+ * Resolve a raw skill string against PREDEFINED_SKILL_CATALOG (and any optional
+ * verified opportunity skills from the database). Returns the canonical skill
+ * entry `{ name, category, aliases, isLearningTopic }` if valid, or `null` if
+ * the skill is not part of the supported catalog.
+ */
+export function resolveCanonicalCatalogSkill(rawSkill, extraCatalogEntries = []) {
+  const key = getCanonicalSkillKey(rawSkill);
+  if (!key) return null;
+
+  for (const item of PREDEFINED_SKILL_CATALOG) {
+    if (getCanonicalSkillKey(item.name) === key) {
+      return item;
+    }
+  }
+
+  for (const item of extraCatalogEntries) {
+    if (item && item.name && getCanonicalSkillKey(item.name) === key) {
+      return item;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Retrieve the full canonical skill catalog, dynamically including any verified
+ * technical skills associated with opportunities in the MySQL `opportunities`
+ * table that are not already in `PREDEFINED_SKILL_CATALOG`.
+ */
+export async function getFullSkillCatalog(pool) {
+  const catalog = [...PREDEFINED_SKILL_CATALOG];
+  const seenKeys = new Set(catalog.map((item) => getCanonicalSkillKey(item.name)));
+
+  if (!pool) return catalog;
+
+  try {
+    const [rows] = await pool.query(
+      `SELECT required_skills, suggested_skills FROM opportunities`
+    );
+    for (const row of rows) {
+      let suggested = [];
+      let required = [];
+      try {
+        suggested = Array.isArray(row.suggested_skills)
+          ? row.suggested_skills
+          : JSON.parse(row.suggested_skills || '[]');
+      } catch {
+        suggested = [];
+      }
+      try {
+        required = Array.isArray(row.required_skills)
+          ? row.required_skills
+          : JSON.parse(row.required_skills || '[]');
+      } catch {
+        required = [];
+      }
+
+      // Include all skills from both required_skills and suggested_skills
+      const associatedSkills = [
+        ...(Array.isArray(required) ? required : []),
+        ...(Array.isArray(suggested) ? suggested : []),
+      ];
+
+      if (associatedSkills.length > 0) {
+        for (const raw of associatedSkills) {
+          const trimmed = String(raw || '').trim();
+          const key = getCanonicalSkillKey(trimmed);
+          if (trimmed && key && !seenKeys.has(key)) {
+            seenKeys.add(key);
+            catalog.push({
+              name: trimmed,
+              category: 'Opportunity-Specific Skills',
+              aliases: [],
+              isLearningTopic: false,
+            });
+          }
+        }
+      }
+    }
+  } catch {
+    // Fallback to static PREDEFINED_SKILL_CATALOG if query fails
+  }
+
+  return catalog;
+}
+
+/**
+ * Predefined Engineering Technical & Learning Interests Catalog.
+ */
+export const PREDEFINED_INTERESTS_CATALOG = [
+  {
+    name: 'Web Development',
+    category: 'Web & Mobile',
+    aliases: ['Web', 'Web App Development', 'Web Applications'],
+  },
+  {
+    name: 'Full-Stack Web Development',
+    category: 'Web & Mobile',
+    aliases: ['Full-Stack', 'Full Stack Development', 'Full-Stack Development'],
+  },
+  {
+    name: 'Frontend Engineering',
+    category: 'Web & Mobile',
+    aliases: ['Frontend', 'Frontend Development', 'UI/UX Engineering'],
+  },
+  {
+    name: 'Backend Engineering',
+    category: 'Web & Mobile',
+    aliases: ['Backend', 'Backend Development', 'APIs & Microservices'],
+  },
+  {
+    name: 'Mobile App Development',
+    category: 'Web & Mobile',
+    aliases: ['Mobile Apps', 'Mobile Development', 'Android & iOS'],
+  },
+  {
+    name: 'Data Structures & Algorithms',
+    category: 'Algorithms & Programming',
+    aliases: ['DSA', 'Algorithms'],
+  },
+  {
+    name: 'Competitive Programming',
+    category: 'Algorithms & Programming',
+    aliases: ['CP', 'Algorithmic Programming', 'Sports Programming'],
+  },
+  {
+    name: 'Machine Learning',
+    category: 'AI & Data',
+    aliases: [
+      'ML',
+      'AI',
+      'Artificial Intelligence',
+      'AI & ML',
+      'Artificial Intelligence & Machine Learning',
+    ],
+  },
+  {
+    name: 'Data Science & Analytics',
+    category: 'AI & Data',
+    aliases: ['Data Science', 'Data Analytics', 'Big Data'],
+  },
+  {
+    name: 'Database Systems',
+    category: 'AI & Data',
+    aliases: ['Databases', 'SQL & DBMS', 'DBMS'],
+  },
+  {
+    name: 'Cloud Computing',
+    category: 'Cloud, Systems & Security',
+    aliases: ['Cloud', 'Cloud Infrastructure', 'AWS & Cloud'],
+  },
+  {
+    name: 'DevOps & Automation',
+    category: 'Cloud, Systems & Security',
+    aliases: ['DevOps', 'CI/CD', 'Site Reliability'],
+  },
+  {
+    name: 'Open Source',
+    category: 'Cloud, Systems & Security',
+    aliases: ['Open Source Contribution', 'FOSS', 'OSS'],
+  },
+  {
+    name: 'Systems Programming',
+    category: 'Cloud, Systems & Security',
+    aliases: ['Systems', 'Operating Systems', 'Linux & Systems'],
+  },
+  {
+    name: 'Distributed Systems',
+    category: 'Cloud, Systems & Security',
+    aliases: ['Scalable Systems', 'High Performance Computing'],
+  },
+  {
+    name: 'Cybersecurity',
+    category: 'Cloud, Systems & Security',
+    aliases: ['Security', 'Information Security', 'Network Security'],
+  },
+  {
+    name: 'Embedded Systems & IoT',
+    category: 'Cloud, Systems & Security',
+    aliases: ['Embedded Systems', 'IoT', 'Hardware & Robotics'],
+  },
+];
+
+/**
+ * Predefined Engineering Career Goals Catalog.
+ */
+export const PREDEFINED_CAREER_GOALS_CATALOG = [
+  {
+    name: 'Software Engineer',
+    category: 'Engineering Roles',
+    aliases: ['SDE', 'Software Developer', 'Software Engineering'],
+  },
+  {
+    name: 'Software Engineering Internship',
+    category: 'Internships & Early Career',
+    aliases: [
+      'SDE Intern',
+      'Summer Software Engineering Internship',
+      'Internship',
+      'Software Engineering Internship & Full-Stack Product Roles',
+    ],
+  },
+  {
+    name: 'Full-Stack Developer',
+    category: 'Engineering Roles',
+    aliases: ['Full-Stack Engineer', 'Full Stack Developer'],
+  },
+  {
+    name: 'Frontend Engineer',
+    category: 'Engineering Roles',
+    aliases: ['Frontend Developer', 'UI Engineer'],
+  },
+  {
+    name: 'Backend Engineer',
+    category: 'Engineering Roles',
+    aliases: ['Backend Developer', 'Systems & API Engineer'],
+  },
+  {
+    name: 'Machine Learning Engineer',
+    category: 'AI, Data & Cloud Roles',
+    aliases: ['ML Engineer', 'AI Engineer'],
+  },
+  {
+    name: 'Data Scientist / Data Analyst',
+    category: 'AI, Data & Cloud Roles',
+    aliases: ['Data Scientist', 'Data Analyst', 'Data Engineer'],
+  },
+  {
+    name: 'Cloud & DevOps Engineer',
+    category: 'AI, Data & Cloud Roles',
+    aliases: ['Cloud Engineer', 'DevOps Engineer', 'Site Reliability Engineer', 'SRE'],
+  },
+  {
+    name: 'Systems & Infrastructure Engineer',
+    category: 'Engineering Roles',
+    aliases: ['Systems Engineer', 'Linux / Kernel Developer'],
+  },
+  {
+    name: 'Cybersecurity Engineer',
+    category: 'AI, Data & Cloud Roles',
+    aliases: ['Security Engineer', 'Cybersecurity Analyst'],
+  },
+  {
+    name: 'Mobile Application Developer',
+    category: 'Engineering Roles',
+    aliases: ['Mobile Engineer', 'Android / iOS Developer'],
+  },
+  {
+    name: 'Open Source Contributor',
+    category: 'Competitions & Community',
+    aliases: [
+      'Open Source Mentee',
+      'GSoC / LFX Contributor',
+      'Win hackathons and build open-source projects',
+    ],
+  },
+  {
+    name: 'Hackathon Finalist & Builder',
+    category: 'Competitions & Community',
+    aliases: ['Hackathons', 'Hackathon Winner', 'Crack Google Hackathon'],
+  },
+  {
+    name: 'Competitive Programmer',
+    category: 'Competitions & Community',
+    aliases: ['ICPC Contestant', 'Algorithmic Competitor'],
+  },
+  {
+    name: 'Product Engineering & Startups',
+    category: 'Internships & Early Career',
+    aliases: ['Product Engineer', 'Founding Engineer'],
+  },
+  {
+    name: 'Higher Studies & Research',
+    category: 'Internships & Early Career',
+    aliases: ['Research Intern', 'MS / PhD Research', 'R&D Engineer'],
+  },
+];
+
+/**
+ * Predefined MVP Supported Branches Catalog (CSE, IT, and related specializations).
+ */
+export const PREDEFINED_BRANCH_CATALOG = [
+  {
+    name: 'Computer Science and Engineering (CSE)',
+    category: 'Core Computing',
+    aliases: [
+      'CSE',
+      'CS',
+      'Computer Science',
+      'Computer Science & Engineering',
+      'Computer Science and Engineering',
+      'Computer Science & Engineering (CSE)',
+      'B.Tech CSE',
+      'B.E. CSE',
+    ],
+  },
+  {
+    name: 'CSE – Artificial Intelligence & Machine Learning',
+    category: 'CSE Specialization',
+    aliases: [
+      'CSE - Artificial Intelligence & Machine Learning',
+      'CSE (AI & ML)',
+      'CSE - AI & ML',
+      'CSE – AI & ML',
+      'CSE AIML',
+      'CSE - AIML',
+      'CSE – AIML',
+      'Computer Science (AI & ML)',
+    ],
+  },
+  {
+    name: 'CSE – Data Science',
+    category: 'CSE Specialization',
+    aliases: [
+      'CSE - Data Science',
+      'CSE (Data Science)',
+      'CSE (DS)',
+      'CSE - DS',
+      'CSE – DS',
+      'Computer Science (Data Science)',
+    ],
+  },
+  {
+    name: 'CSE – Cybersecurity',
+    category: 'CSE Specialization',
+    aliases: [
+      'CSE - Cybersecurity',
+      'CSE (Cybersecurity)',
+      'CSE - Cyber Security',
+      'CSE – Cyber Security',
+      'Computer Science (Cybersecurity)',
+    ],
+  },
+  {
+    name: 'CSE – Internet of Things (IoT)',
+    category: 'CSE Specialization',
+    aliases: [
+      'CSE - Internet of Things (IoT)',
+      'CSE - IoT',
+      'CSE – IoT',
+      'CSE (IoT)',
+      'CSE - Internet of Things',
+      'CSE – Internet of Things',
+    ],
+  },
+  {
+    name: 'Information Technology (IT)',
+    category: 'Core Computing',
+    aliases: ['IT', 'Information Technology', 'B.Tech IT', 'B.E. IT'],
+  },
+  {
+    name: 'Artificial Intelligence & Data Science (AI & DS)',
+    category: 'AI & Data Specialization',
+    aliases: [
+      'AI & DS',
+      'AIDS',
+      'AI and DS',
+      'Artificial Intelligence and Data Science',
+      'Artificial Intelligence & Data Science',
+      'Artificial Intelligence and Data Science (AI & DS)',
+    ],
+  },
+];
+
+function normalizeOptionComparisonKey(str) {
+  return String(str || '')
+    .replace(/[–—]/g, '-')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
+/**
+ * Resolve a raw option string against a predefined catalog (matching canonical name or aliases).
+ */
+export function resolveCanonicalCatalogOption(rawOption, catalog = []) {
+  const norm = normalizeOptionComparisonKey(rawOption);
+  if (!norm) return null;
+
+  for (const item of catalog) {
+    if (normalizeOptionComparisonKey(item.name) === norm) {
+      return item;
+    }
+    if (
+      Array.isArray(item.aliases) &&
+      item.aliases.some((alias) => normalizeOptionComparisonKey(alias) === norm)
+    ) {
+      return item;
+    }
+  }
+  return null;
+}
+
+/**
+ * Normalize and validate the single-select Branch / Major profile field.
+ * - Empty string is allowed (optional field before selection).
+ * - Resolves supported branches and genuinely equivalent aliases to canonical names.
+ * - Preserves a student's own previously saved legacy branch without silently overwriting or deleting it.
+ * - Rejects newly submitted unsupported branch values with 400 Bad Request.
+ */
+export function normalizeAndValidateProfileBranch({
+  rawBranch,
+  existingSavedBranch = '',
+  allowAllExistingAsLegacy = false,
+}) {
+  if (rawBranch === null || rawBranch === undefined || rawBranch === '') {
+    return { valid: true, branch: '', isLegacy: false };
+  }
+  if (typeof rawBranch !== 'string') {
+    return {
+      valid: false,
+      message: 'Branch / Major must be a valid string.',
+      branch: '',
+      isLegacy: false,
+    };
+  }
+
+  const trimmed = rawBranch.trim();
+  if (!trimmed) {
+    return { valid: true, branch: '', isLegacy: false };
+  }
+
+  const catalogMatch = resolveCanonicalCatalogOption(
+    trimmed,
+    PREDEFINED_BRANCH_CATALOG
+  );
+  if (catalogMatch) {
+    return {
+      valid: true,
+      branch: catalogMatch.name,
+      isLegacy: false,
+    };
+  }
+
+  const existingTrimmed =
+    typeof existingSavedBranch === 'string' ? existingSavedBranch.trim() : '';
+  const isExistingLegacyMatch =
+    existingTrimmed &&
+    !resolveCanonicalCatalogOption(existingTrimmed, PREDEFINED_BRANCH_CATALOG) &&
+    normalizeOptionComparisonKey(trimmed) ===
+      normalizeOptionComparisonKey(existingTrimmed);
+
+  if (allowAllExistingAsLegacy || isExistingLegacyMatch) {
+    return {
+      valid: true,
+      branch: existingTrimmed || trimmed,
+      isLegacy: true,
+    };
+  }
+
+  return {
+    valid: false,
+    message: `Unsupported branch "${trimmed}". SkillUP currently supports CSE, IT and related specializations.`,
+    branch: '',
+    isLegacy: false,
+  };
+}
+
+
+/**
+ * Parse a comma/semicolon/pipe-separated string or array of strings into trimmed tokens.
+ */
+export function parseProfileMultiSelectTokens(rawInput) {
+  if (rawInput === null || rawInput === undefined || rawInput === '') {
+    return { valid: true, tokens: [] };
+  }
+  if (Array.isArray(rawInput)) {
+    const tokens = [];
+    for (const entry of rawInput) {
+      if (typeof entry === 'string') {
+        const trimmed = entry.trim();
+        if (trimmed) tokens.push(trimmed);
+      } else if (entry && typeof entry === 'object' && typeof entry.name === 'string') {
+        const trimmed = entry.name.trim();
+        if (trimmed) tokens.push(trimmed);
+      } else {
+        return { valid: false, tokens: [] };
+      }
+    }
+    return { valid: true, tokens };
+  }
+  if (typeof rawInput === 'string') {
+    const tokens = rawInput
+      .split(/[,;|]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    return { valid: true, tokens };
+  }
+  return { valid: false, tokens: [] };
+}
+
+/**
+ * Normalize, deduplicate, and validate a multi-select profile field (Interests or Career Goals).
+ * - Resolves catalog items and aliases to canonical names.
+ * - Allows retaining only the student's own previously saved legacy tokens.
+ * - Rejects newly submitted arbitrary values when allowAllExistingAsLegacy is false.
+ */
+export function normalizeAndValidateProfileMultiSelect({
+  rawInput,
+  catalog,
+  existingSavedRaw = '',
+  fieldLabel = 'option',
+  allowAllExistingAsLegacy = false,
+}) {
+  const parsed = parseProfileMultiSelectTokens(rawInput);
+  if (!parsed.valid) {
+    return {
+      valid: false,
+      message: `${fieldLabel} must be an array of strings or a comma-separated string.`,
+      items: [],
+      serialized: '',
+    };
+  }
+
+  const existingLegacyMap = new Map();
+  const existingParsed = parseProfileMultiSelectTokens(existingSavedRaw);
+  for (const tok of existingParsed.tokens) {
+    if (!resolveCanonicalCatalogOption(tok, catalog)) {
+      existingLegacyMap.set(normalizeSkillString(tok), tok);
+    }
+  }
+  const fullExistingTrimmed =
+    typeof existingSavedRaw === 'string' ? existingSavedRaw.trim() : '';
+  if (
+    fullExistingTrimmed &&
+    !resolveCanonicalCatalogOption(fullExistingTrimmed, catalog)
+  ) {
+    existingLegacyMap.set(
+      normalizeSkillString(fullExistingTrimmed),
+      fullExistingTrimmed
+    );
+  }
+
+  const dedupMap = new Map();
+  for (const token of parsed.tokens) {
+    const catalogMatch = resolveCanonicalCatalogOption(token, catalog);
+    if (catalogMatch) {
+      const key = normalizeSkillString(catalogMatch.name);
+      if (!dedupMap.has(key)) {
+        dedupMap.set(key, {
+          name: catalogMatch.name,
+          category: catalogMatch.category,
+          isLegacy: false,
+        });
+      }
+    } else {
+      const legacyKey = normalizeSkillString(token);
+      if (allowAllExistingAsLegacy || existingLegacyMap.has(legacyKey)) {
+        const preservedName = existingLegacyMap.get(legacyKey) || token;
+        if (!dedupMap.has(legacyKey)) {
+          dedupMap.set(legacyKey, {
+            name: preservedName,
+            category: 'Legacy (Saved Entry)',
+            isLegacy: true,
+          });
+        }
+      } else {
+        return {
+          valid: false,
+          message: `Unsupported ${fieldLabel.toLowerCase()} "${token}". Please select from the predefined ${fieldLabel} catalog.`,
+          items: [],
+          serialized: '',
+        };
+      }
+    }
+  }
+
+  const items = Array.from(dedupMap.values());
+  return {
+    valid: true,
+    items,
+    serialized: items.map((i) => i.name).join(', '),
+  };
 }
 
 /**
