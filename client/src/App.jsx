@@ -4,6 +4,7 @@ import { checkHealth } from './services/api';
 import { scrollToTop } from './utils/scroll';
 import LoginForm from './components/auth/LoginForm';
 import RegisterForm from './components/auth/RegisterForm';
+import DashboardView from './components/dashboard/DashboardView';
 import ProfileView from './components/profile/ProfileView';
 import LearnView from './components/learn/LearnView';
 import TracksView from './components/tracks/TracksView';
@@ -12,7 +13,7 @@ import OpportunitiesView from './components/opportunities/OpportunitiesView';
 function AppContent() {
   const { user, loading: authLoading, logout } = useAuth();
   const [authMode, setAuthMode] = useState('login'); // 'login' | 'register'
-  const [activeTab, setActiveTab] = useState('learn'); // 'learn' | 'tracks' | 'opportunities' | 'profile'
+  const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' | 'learn' | 'tracks' | 'opportunities' | 'profile'
   const [selectedTrackId, setSelectedTrackId] = useState(null);
   const [selectedOpportunityId, setSelectedOpportunityId] = useState(null);
   const [bridgeContext, setBridgeContext] = useState(null);
@@ -52,6 +53,11 @@ function AppContent() {
     );
   };
 
+  const handleOpenTrack = (trackId) => {
+    setSelectedTrackId(trackId || null);
+    setActiveTab('tracks');
+  };
+
   const handleStartBridgeSkillGap = (context) => {
     setBridgeContext(context || null);
     setActiveTab('learn');
@@ -75,6 +81,17 @@ function AppContent() {
       setProfileReturnContext(null);
     }
     setActiveTab('profile');
+  };
+
+  const handleNavigateTab = (tab) => {
+    if (tab === 'tracks') {
+      setSelectedTrackId(null);
+    } else if (tab === 'opportunities') {
+      setSelectedOpportunityId(null);
+    } else if (tab === 'profile') {
+      setProfileReturnContext(null);
+    }
+    setActiveTab(tab);
   };
 
   // Backend Health check status
@@ -102,6 +119,17 @@ function AppContent() {
     testBackendConnection();
   }, []);
 
+  // Ensure Dashboard opens as the primary landing page when a user logs in
+  useEffect(() => {
+    if (!user) {
+      setActiveTab('dashboard');
+      setSelectedTrackId(null);
+      setSelectedOpportunityId(null);
+      setBridgeContext(null);
+      setProfileReturnContext(null);
+    }
+  }, [user]);
+
   useEffect(() => {
     if (!authLoading) {
       scrollToTop();
@@ -119,13 +147,24 @@ function AppContent() {
               SkillUp
             </span>
             <span className="text-xs px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-medium">
-              Milestone 7
+              Milestone 8
             </span>
           </div>
 
           {/* Center Tabs for Authenticated Student */}
           {user && (
             <nav className="flex flex-wrap items-center bg-slate-800/80 border border-slate-700/80 rounded-xl p-1 gap-0.5">
+              <button
+                type="button"
+                onClick={() => setActiveTab('dashboard')}
+                className={`text-xs px-3.5 py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
+                  activeTab === 'dashboard'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Dashboard
+              </button>
               <button
                 type="button"
                 onClick={() => setActiveTab('learn')}
@@ -153,7 +192,10 @@ function AppContent() {
               </button>
               <button
                 type="button"
-                onClick={() => setActiveTab('opportunities')}
+                onClick={() => {
+                  setSelectedOpportunityId(null);
+                  setActiveTab('opportunities');
+                }}
                 className={`text-xs px-3.5 py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
                   activeTab === 'opportunities'
                     ? 'bg-indigo-600 text-white shadow-sm'
@@ -275,7 +317,14 @@ function AppContent() {
                 </button>
               </div>
             )}
-            {activeTab === 'learn' ? (
+            {activeTab === 'dashboard' ? (
+              <DashboardView
+                onNavigateTab={handleNavigateTab}
+                onOpenTrack={handleOpenTrack}
+                onOpenOpportunity={handleReturnToOpportunity}
+                onNavigateToProfile={handleNavigateToProfile}
+              />
+            ) : activeTab === 'learn' ? (
               <LearnView
                 onTrackCreated={handleTrackCreated}
                 bridgeContext={bridgeContext}
@@ -331,7 +380,7 @@ function AppContent() {
       <footer className="border-t border-slate-800 bg-slate-900/60 py-6 px-4">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
           <div>
-            <span className="font-semibold text-slate-400">SkillUp</span> — Milestone 7: Bridge My Skill Gap
+            <span className="font-semibold text-slate-400">SkillUp</span> — Milestone 8: Personalized Student Dashboard
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="bg-indigo-500/20 text-indigo-400 px-2 py-0.5 rounded font-medium">Learn</span>

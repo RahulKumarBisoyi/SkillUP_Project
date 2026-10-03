@@ -34,7 +34,18 @@ async function apiRequest(endpoint, options = {}) {
 
   if (!response.ok) {
     const errorMsg = data.message || `Request failed with status ${response.status}`;
-    throw new Error(errorMsg);
+    const err = new Error(errorMsg);
+    err.status = response.status;
+    if (
+      response.status === 401 &&
+      typeof window !== 'undefined' &&
+      !endpoint.startsWith('/api/auth/')
+    ) {
+      window.dispatchEvent(
+        new CustomEvent('skillup:unauthorized', { detail: { endpoint } })
+      );
+    }
+    throw err;
   }
 
   return data;
@@ -170,6 +181,16 @@ export async function analyzeOpportunitySkills(opportunityId) {
   });
 }
 
+/**
+ * Personalized Student Dashboard API (Milestone 8)
+ */
+export async function getDashboard(options = {}) {
+  return apiRequest('/api/dashboard', {
+    method: 'GET',
+    ...options,
+  });
+}
+
 export default {
   checkHealth,
   register,
@@ -187,6 +208,7 @@ export default {
   getOpportunities,
   getOpportunityById,
   analyzeOpportunitySkills,
+  getDashboard,
 };
 
 

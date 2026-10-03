@@ -17,7 +17,7 @@ import {
  * If duplicate/alias entries exist (e.g., "JS" and "JavaScript"), preserves
  * "Knows" if either entry is marked "Knows".
  */
-function normalizeSavedUserSkills(dbSkillRows, skillCatalog) {
+export function normalizeSavedUserSkills(dbSkillRows, skillCatalog) {
   const dedupMap = new Map();
 
   for (const row of dbSkillRows) {

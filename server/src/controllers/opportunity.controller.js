@@ -259,10 +259,17 @@ export function detectHostingMetadata(sourceUrl, isExpired = false) {
   };
 }
 
+const STATUS_ORDER = {
+  Open: 1,
+  Upcoming: 2,
+  'Check Official Page': 3,
+  Expired: 4,
+};
+
 /**
  * Transform a raw MySQL opportunity row into a structured API response object.
  */
-function serializeOpportunity(row, userSkills, profile) {
+export function serializeOpportunity(row, userSkills, profile) {
   const requiredSkills = parseJsonArray(row.required_skills);
   const suggestedSkills = parseJsonArray(row.suggested_skills);
   const {
@@ -307,6 +314,42 @@ function serializeOpportunity(row, userSkills, profile) {
 }
 
 /**
+ * Compute sorted non-expired recommended opportunities from raw DB rows using
+ * the shared Milestone 5 recommendation and sorting rules.
+ */
+export function getRecommendedOpportunitiesFromRows(rows, userSkills, profile) {
+  const serialized = (rows || []).map((row) =>
+    serializeOpportunity(row, userSkills, profile)
+  );
+
+  serialized.sort((a, b) => {
+    const statusDiff =
+      (STATUS_ORDER[a.status] || 99) - (STATUS_ORDER[b.status] || 99);
+    if (statusDiff !== 0) return statusDiff;
+    if (a.deadline && b.deadline) {
+      return a.deadline.localeCompare(b.deadline);
+    }
+    if (a.deadline && !b.deadline) return -1;
+    if (!a.deadline && b.deadline) return 1;
+    return a.id - b.id;
+  });
+
+  const recommendedList = serialized
+    .filter((opp) => opp.isRecommended && !opp.isExpired)
+    .sort((a, b) => {
+      if (b.relevanceScore !== a.relevanceScore) {
+        return b.relevanceScore - a.relevanceScore;
+      }
+      return (STATUS_ORDER[a.status] || 99) - (STATUS_ORDER[b.status] || 99);
+    });
+
+  return {
+    serialized,
+    recommendedList,
+  };
+}
+
+/**
  * Fetch the logged-in student's profile and skills for relevance suggestions.
  */
 async function getStudentContext(userId) {
@@ -345,26 +388,11 @@ export async function getOpportunities(req, res, next) {
       pool.query('SELECT * FROM opportunities ORDER BY id ASC'),
     ]);
 
-    const serialized = rows.map((row) => serializeOpportunity(row, userSkills, profile));
-
-    // Sort: non-expired first, then Open/Upcoming before Check Official Page, then nearest deadline
-    const statusOrder = {
-      Open: 1,
-      Upcoming: 2,
-      'Check Official Page': 3,
-      Expired: 4,
-    };
-
-    serialized.sort((a, b) => {
-      const statusDiff = (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99);
-      if (statusDiff !== 0) return statusDiff;
-      if (a.deadline && b.deadline) {
-        return a.deadline.localeCompare(b.deadline);
-      }
-      if (a.deadline && !b.deadline) return -1;
-      if (!a.deadline && b.deadline) return 1;
-      return a.id - b.id;
-    });
+    const { serialized } = getRecommendedOpportunitiesFromRows(
+      rows,
+      userSkills,
+      profile
+    );
 
     // Apply optional filters
     const searchQuery = String(search || '').trim().toLowerCase();
@@ -398,14 +426,14 @@ export async function getOpportunities(req, res, next) {
       return true;
     });
 
-    // Recommended subset (sorted by relevanceScore desc, then statusOrder)
+    // Recommended subset (sorted by relevanceScore desc, then STATUS_ORDER)
     const recommendedList = filtered
       .filter((opp) => opp.isRecommended && !opp.isExpired)
       .sort((a, b) => {
         if (b.relevanceScore !== a.relevanceScore) {
           return b.relevanceScore - a.relevanceScore;
         }
-        return (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99);
+        return (STATUS_ORDER[a.status] || 99) - (STATUS_ORDER[b.status] || 99);
       });
 
     return res.status(200).json({

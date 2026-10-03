@@ -23,6 +23,14 @@ export function AuthProvider({ children }) {
       }
     }
     initAuth();
+
+    const handleUnauthorized = () => {
+      setUser(null);
+    };
+    window.addEventListener('skillup:unauthorized', handleUnauthorized);
+    return () => {
+      window.removeEventListener('skillup:unauthorized', handleUnauthorized);
+    };
   }, []);
 
   const login = async (email, password) => {

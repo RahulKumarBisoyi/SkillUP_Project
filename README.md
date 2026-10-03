@@ -35,6 +35,7 @@ Skillup_hackathon/
 │   │   ├── components/          # Reusable UI components
 │   │   │   ├── auth/            # Authentication forms (LoginForm, RegisterForm)
 │   │   │   ├── common/          # Shared components (buttons, badges, modals)
+│   │   │   ├── dashboard/       # Personalized Student Dashboard (DashboardView)
 │   │   │   ├── learn/           # Learning Resource Discovery (LearnView, ResourceCard)
 │   │   │   ├── opportunities/   # Verified Opportunity Discovery & Details (OpportunitiesView)
 │   │   │   ├── profile/         # Student Profile & Skills management view
@@ -58,6 +59,7 @@ Skillup_hackathon/
 │   │   │   └── db.js            # MySQL2 connection pool
 │   │   ├── controllers/         # Request handling & business logic
 │   │   │   ├── auth.controller.js
+│   │   │   ├── dashboard.controller.js   # Personalized Student Dashboard aggregation controller
 │   │   │   ├── learn.controller.js       # Learning recommendation controller
 │   │   │   ├── opportunity.controller.js # Verified opportunity discovery & relevance controller
 │   │   │   ├── profile.controller.js
@@ -70,6 +72,7 @@ Skillup_hackathon/
 │   │   │   └── auth.middleware.js # JWT verification (cookie & Bearer)
 │   │   ├── routes/              # Route definitions
 │   │   │   ├── auth.routes.js        # /api/auth endpoints (register, login, me, logout)
+│   │   │   ├── dashboard.routes.js   # GET /api/dashboard endpoint
 │   │   │   ├── health.routes.js      # GET /api/health endpoint
 │   │   │   ├── learn.routes.js       # POST /api/learn/recommend endpoint
 │   │   │   ├── opportunity.routes.js # /api/opportunities endpoints (list, detail, analyze)
@@ -310,6 +313,67 @@ $$\text{Discover Opportunity} \rightarrow \text{Analyze Skills} \rightarrow \tex
 
 ---
 
+## Personalized Student Dashboard Architecture (Milestone 8)
+
+### 1. Overview & Visual-First Design
+Milestone 8 integrates all SkillUP features into a scannable, visual-first **Personalized Student Dashboard** ([`DashboardView.jsx`](file:///c:/Users/rahul/OneDrive/Desktop/Skillup_hackathon/client/src/components/dashboard/DashboardView.jsx)) that opens as the primary landing page after login. Every count, progress bar, skill chip, and recommendation is computed directly from real MySQL records without calling external YouTube or Gemini APIs when the dashboard loads.
+
+### 2. Dashboard Sections & Components
+1. **Personalized Welcome Banner**:
+   - Greets the authenticated student by name (`Welcome back, [Name]!`), shows their computing branch and college year badge when available, and presents **one** deterministic primary action:
+     - **Complete Your Profile**: Shown when any required Profile field (`Branch / Major`, `College Year`, `Learning Hours / Day`, `Technical & Learning Interests`, `Career Goals`, or `Skills`) is missing, listing the exact missing fields.
+     - **Continue Learning**: Shown when the student has at least one active learning track, opening the most recently updated active track.
+     - **Discover Learning Resources**: Shown when the student's profile is complete and no tracks have been created yet.
+     - **Explore Opportunities**: Shown when the student's profile is complete and all saved learning tracks have reached `100% Completed`.
+2. **Dashboard Overview Cards**:
+   - **Active Learning Tracks**: Count of active tracks (`activeTracksCount`) alongside completed tracks (`completedTracksCount`).
+   - **Completed Learning Tasks**: Total completed tasks (`completedTasksCount`) out of `totalTasksCount` across all tracks owned by the student.
+   - **Known Skills**: Count of `Knows` skills (`knownSkillsCount`) plus `+X learning` (`learningSkillsCount`).
+   - **Recommended Opportunities**: Count of non-expired opportunities matching the student's skills, interests, and career goals (`recommendedOpportunitiesCount`).
+3. **Continue Learning (Active Tracks)**:
+   - Displays up to 3 most recently updated active tracks (`ORDER BY lt.updated_at DESC, lt.created_at DESC, lt.id DESC`) with a **View All Tracks →** header action.
+   - Each card shows the topic, level, YouTube resource title/channel/duration/thumbnail, `completedTasks / totalTasks`, progress bar (`progressPercentage%`), **Next Incomplete Task** callout (`Day X • Watch/Practice/Revision • Ym`), and a **Continue Learning →** button.
+   - For **Opportunity-Linked Tracks (Bridge My Skill Gap)**, displays `Bridge Skill Gap: [Opportunity Title]`, `Target: [Skill]`, and a **View Opportunity →** button (handling deleted/unavailable opportunities gracefully).
+4. **Recommended Opportunities**:
+   - Reuses Milestone 5's `getRecommendedOpportunitiesFromRows` engine to display up to 3 non-expired recommended opportunities with title, organization, type badge, Unstop badge (when applicable), verified deadline (or `"Check Official Page"`), concise `relevanceReason`, **View Details →**, and **View All Opportunities →**.
+5. **My Skills Overview**:
+   - Displays **Known Skills (`Knows`)** and **Currently Learning (`Learning`)** as compact visual chips with an **Edit My Skills** (or **+ Add Your Skills**) button opening `ProfileView`.
+6. **Recently Completed Tracks**:
+   - Displays up to 3 recently completed tracks (`✓ Completed (X/X)`), linked opportunity & target skill (if any), **View Track**, and **Update My Skills** for opportunity-linked tracks.
+
+### 3. How Statistics, Profile Completion & Progress Are Calculated (`GET /api/dashboard`)
+| Metric / State | Calculation Rule |
+| :--- | :--- |
+| **`isProfileComplete`** | `true` only when all 6 required Profile sections are present: non-empty `branch`, valid `college_year` (1–10), `learning_hours_per_day > 0`, $\ge 1$ `interestsList` item, $\ge 1$ `careerGoalsList` item, and $\ge 1$ normalized skill in `user_skills`. |
+| **Track `progressPercentage`** | `totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0`. Zero-task tracks safely evaluate to `0%`. |
+| **Track `status`** | Derived strictly from actual task completion rows: `totalTasks > 0 && completedTasks === totalTasks ? 'Completed' : 'Active'`. Reopening a completed task immediately updates the track back to `'Active'` in both `My Tracks` and `Dashboard`. |
+| **`nextTask`** | Fetched in a single batch SQL query (`WHERE track_id IN (?) AND completed = 0 ORDER BY track_id ASC, day_number ASC, sort_order ASC, id ASC`) with zero N+1 queries. |
+
+### 4. Data-Refresh Behavior & Bidirectional Navigation
+- **Fresh Data on Navigation**: Returning to the **Dashboard** tab mounts `DashboardView` and fetches fresh state from `GET /api/dashboard`, immediately reflecting profile edits, skill status toggles, newly created tracks, task completions, and reopened tasks without requiring a browser reload.
+- **Anti-Duplicate Request Guard**: `isFetchingRef` prevents duplicate concurrent requests during ordinary React re-renders.
+- **Expired Session Handling**: Any `401 Unauthorized` response dispatches a `skillup:unauthorized` window event handled by `AuthContext`, cleanly returning the user to the Sign In screen.
+- **Bidirectional Navigation**:
+  - `Dashboard ↔ Profile` (preserving `Profile → Learn` on ordinary save and `Bridge My Skill Gap → Profile → Original Opportunity` on Bridge save)
+  - `Dashboard ↔ Discover Resources`
+  - `Dashboard ↔ My Tracks` (both full list via **View All Tracks →** and direct track detail via **Continue Learning →** / **View Track**)
+  - `Dashboard ↔ Opportunities` (both full list via **View All Opportunities →** and specific opportunity detail via **View Details →** / **View Opportunity →**)
+
+### 5. Milestone 8 Backend Endpoint (Protected by JWT Auth)
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/api/dashboard` | Aggregate student profile completion, summary statistics, active tracks + next incomplete tasks, recently completed tracks, skills overview, and top recommended opportunities |
+
+### 6. Manual Testing Instructions (Milestone 8)
+1. Sign in or register a new student account at `http://localhost:5173` — verify **Dashboard** opens as the default landing page.
+2. For a newly registered student, verify the welcome banner shows **Complete Your Profile →** and lists the missing profile fields.
+3. Click **Complete Your Profile →**, select a supported computing branch (e.g., `Computer Science and Engineering (CSE)`), college year, daily study hours, technical interests, career goals, and skills (`Knows` and `Learning`), then save — verify ordinary save navigates to **Discover Resources**.
+4. Click **Dashboard** in the top navigation bar — verify the overview cards, **My Skills Overview** chips, and **Recommended Opportunities** reflect your saved profile, and the primary action updates to **Discover Learning Resources →**.
+5. Create a learning track from **Discover Resources** (or via **Opportunities → View Details → Learn This Skill →**), complete one or more daily tasks in **My Tracks**, and return to **Dashboard** — verify `Active Learning Tracks`, `Completed Learning Tasks`, the track's progress bar, and the `Next:` incomplete task update immediately.
+6. Complete all tasks in a track and return to **Dashboard** — verify the track moves from **Continue Learning** to **Recently Completed Tracks**, and reopening a task moves it back to **Continue Learning**.
+
+---
+
 ## Authentication Strategy
 
 - **Password Security**: Passwords are never stored in plaintext. They are salted and hashed using `bcryptjs` with 10 salt rounds before persistence.
@@ -401,6 +465,10 @@ curl -X POST http://localhost:5000/api/tracks/generate \
 # List Saved Learning Tracks with Opportunity Context (Protected)
 curl http://localhost:5000/api/tracks \
   -H "Authorization: Bearer <your_jwt_token>"
+
+# Retrieve Personalized Student Dashboard Aggregation (Protected - Milestone 8)
+curl http://localhost:5000/api/dashboard \
+  -H "Authorization: Bearer <your_jwt_token>"
 ```
 
 ---
@@ -487,4 +555,11 @@ The React frontend starts on `http://localhost:5173`.
   - **Strict Non-Equivalence**: Preserves distinctions between specific technologies and broader fields (`AWS` $\neq$ `Cloud`, `Git` $\neq$ `GitHub`, `Full-Stack Web Development` $\neq$ `Web Development`, `HTML`/`CSS` $\neq$ `Web Development`, `C++`/`Java` $\neq$ `DSA`/`DSA in C++`/`DSA in Java`, `Python` $\neq$ `Machine Learning`, `React` $\neq$ `JavaScript`, `MySQL`/`MongoDB` $\neq$ `SQL`/`DBMS`/`SQL & DBMS`)
   - **Transactional Normalization & Legacy Preservation**: Normalizes equivalent aliases on profile load/save and `npm run db:init` (preserving `Knows` when merging equivalent aliases such as `JS` + `JavaScript`) and allows students to retain, update, or remove only their own previously saved legacy entries (`SELECT ... FOR UPDATE`), while rejecting newly submitted arbitrary values with `400 Bad Request`
   - **Visual-First Profile Skills Matrix**: Searchable combobox, grouped **Known Skills (`Knows`)** and **Currently Learning (`Learning`)** cards, and an expandable **Browse Full Skill Catalog by Category** browser
+- [x] **Milestone 8: Personalized Student Dashboard & Complete Integration**
+  - **Dashboard as Primary Home Page**: Opens automatically after login with a dedicated **Dashboard** navigation tab while preserving `Profile → Learn` and `Bridge My Skill Gap → Profile → Original Opportunity` flows
+  - **Protected Aggregation Endpoint (`GET /api/dashboard`)**: Parameterized parallel SQL queries with zero N+1 queries and zero YouTube/Gemini API calls on load
+  - **Strict Profile Completion & Deterministic Next Action**: Evaluates all 6 required Profile sections (`Branch / Major`, `College Year`, `Learning Hours / Day`, `Technical & Learning Interests`, `Career Goals`, and `Skills`) so partially filled profiles are accurately flagged as incomplete
+  - **Consistent Task-Driven Track Progress**: Calculates `progressPercentage` and `Active`/`Completed` status strictly from stored `track_tasks` rows (handling zero-task tracks and reopened tasks identically across `Dashboard` and `My Tracks`)
+  - **Visual-First Overview, Continue Learning, Opportunities, Skills & Completed Tracks**: Compact cards prioritized by `updated_at DESC`, next incomplete task preview, Milestone 7 opportunity-linked track integration, shared Milestone 5 opportunity recommendations, and automatic refresh upon returning to the Dashboard
+
 
