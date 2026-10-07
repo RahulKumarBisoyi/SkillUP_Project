@@ -462,9 +462,10 @@ export async function getOpportunities(req, res, next) {
 export async function getOpportunityById(req, res, next) {
   try {
     const userId = req.user.id;
-    const opportunityId = Number.parseInt(req.params.id, 10);
+    const rawId = String(req.params.id || '').trim();
+    const opportunityId = /^[1-9]\d*$/.test(rawId) ? Number(rawId) : NaN;
 
-    if (!Number.isInteger(opportunityId) || opportunityId <= 0) {
+    if (!Number.isSafeInteger(opportunityId) || opportunityId <= 0) {
       return res.status(400).json({
         status: 'error',
         message: 'Invalid opportunity ID.',
@@ -503,9 +504,10 @@ export async function getOpportunityById(req, res, next) {
 export async function analyzeOpportunity(req, res, next) {
   try {
     const userId = req.user.id;
-    const opportunityId = Number.parseInt(req.params.id, 10);
+    const rawId = String(req.params.id || '').trim();
+    const opportunityId = /^[1-9]\d*$/.test(rawId) ? Number(rawId) : NaN;
 
-    if (!Number.isInteger(opportunityId) || opportunityId <= 0) {
+    if (!Number.isSafeInteger(opportunityId) || opportunityId <= 0) {
       return res.status(400).json({
         status: 'error',
         message: 'Invalid opportunity ID.',

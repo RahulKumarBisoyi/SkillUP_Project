@@ -601,9 +601,10 @@ export async function getUserTracks(req, res, next) {
 export async function getTrackById(req, res, next) {
   try {
     const userId = req.user.id;
-    const trackId = parseInt(req.params.id, 10);
+    const rawId = String(req.params.id || '').trim();
+    const trackId = /^[1-9]\d*$/.test(rawId) ? Number(rawId) : NaN;
 
-    if (!Number.isInteger(trackId) || trackId <= 0) {
+    if (!Number.isSafeInteger(trackId) || trackId <= 0) {
       return res.status(400).json({
         status: 'error',
         message: 'Invalid track ID.',
@@ -719,11 +720,13 @@ export async function getTrackById(req, res, next) {
 export async function updateTaskCompletion(req, res, next) {
   try {
     const userId = req.user.id;
-    const trackId = parseInt(req.params.id, 10);
-    const taskId = parseInt(req.params.taskId, 10);
-    const { completed } = req.body;
+    const rawTrackId = String(req.params.id || '').trim();
+    const rawTaskId = String(req.params.taskId || '').trim();
+    const trackId = /^[1-9]\d*$/.test(rawTrackId) ? Number(rawTrackId) : NaN;
+    const taskId = /^[1-9]\d*$/.test(rawTaskId) ? Number(rawTaskId) : NaN;
+    const { completed } = req.body || {};
 
-    if (!Number.isInteger(trackId) || trackId <= 0 || !Number.isInteger(taskId) || taskId <= 0) {
+    if (!Number.isSafeInteger(trackId) || trackId <= 0 || !Number.isSafeInteger(taskId) || taskId <= 0) {
       return res.status(400).json({
         status: 'error',
         message: 'Invalid track ID or task ID.',

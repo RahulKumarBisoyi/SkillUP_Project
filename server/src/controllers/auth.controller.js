@@ -2,13 +2,27 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import pool from '../config/db.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'skillup_default_dev_secret';
-const COOKIE_OPTIONS = {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'lax',
-  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-};
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function getJwtSecret() {
+  return process.env.JWT_SECRET || 'skillup_default_dev_secret';
+}
+
+function getCookieOptions() {
+  const isProd = process.env.NODE_ENV === 'production';
+  const configuredSameSite = (process.env.COOKIE_SAMESITE || '').trim().toLowerCase();
+  const sameSite =
+    isProd && (configuredSameSite === 'none' || configuredSameSite === 'strict' || configuredSameSite === 'lax')
+      ? configuredSameSite
+      : 'lax';
+
+  return {
+    httpOnly: true,
+    secure: isProd || sameSite === 'none',
+    sameSite,
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  };
+}
 
 /**
  * Helper to generate JWT token for a user.
@@ -16,7 +30,7 @@ const COOKIE_OPTIONS = {
 function generateToken(user) {
   return jwt.sign(
     { id: user.id, email: user.email },
-    JWT_SECRET,
+    getJwtSecret(),
     { expiresIn: '7d' }
   );
 }
@@ -27,19 +41,36 @@ function generateToken(user) {
  */
 export async function register(req, res, next) {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password } = req.body || {};
 
     // Validate inputs
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       return res.status(400).json({ status: 'error', message: 'Name is required.' });
     }
-    if (!email || typeof email !== 'string' || !email.includes('@')) {
+    if (name.trim().length > 120) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Name cannot exceed 120 characters.',
+      });
+    }
+    if (
+      !email ||
+      typeof email !== 'string' ||
+      email.trim().length > 254 ||
+      !EMAIL_REGEX.test(email.trim())
+    ) {
       return res.status(400).json({ status: 'error', message: 'A valid email is required.' });
     }
     if (!password || typeof password !== 'string' || password.length < 6) {
       return res.status(400).json({
         status: 'error',
         message: 'Password must be at least 6 characters long.',
+      });
+    }
+    if (password.length > 128) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Password cannot exceed 128 characters.',
       });
     }
 
@@ -78,7 +109,7 @@ export async function register(req, res, next) {
 
     // Generate JWT and set httpOnly cookie
     const token = generateToken(safeUser);
-    res.cookie('token', token, COOKIE_OPTIONS);
+    res.cookie('token', token, getCookieOptions());
 
     return res.status(201).json({
       status: 'ok',
@@ -97,9 +128,9 @@ export async function register(req, res, next) {
  */
 export async function login(req, res, next) {
   try {
-    const { email, password } = req.body;
+    const { email, password } = req.body || {};
 
-    if (!email || !password) {
+    if (!email || typeof email !== 'string' || !password || typeof password !== 'string') {
       return res.status(400).json({
         status: 'error',
         message: 'Email and password are required.',
@@ -107,6 +138,12 @@ export async function login(req, res, next) {
     }
 
     const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail || normalizedEmail.length > 254) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Email and password are required.',
+      });
+    }
 
     // Look up user by email
     const [users] = await pool.execute(
@@ -141,7 +178,7 @@ export async function login(req, res, next) {
 
     // Generate token and set cookie
     const token = generateToken(safeUser);
-    res.cookie('token', token, COOKIE_OPTIONS);
+    res.cookie('token', token, getCookieOptions());
 
     return res.status(200).json({
       status: 'ok',
@@ -192,11 +229,8 @@ export async function getMe(req, res, next) {
  * Clear authentication session/cookie.
  */
 export async function logout(req, res) {
-  res.clearCookie('token', {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-  });
+  const { maxAge, ...clearOpts } = getCookieOptions();
+  res.clearCookie('token', clearOpts);
 
   return res.status(200).json({
     status: 'ok',

@@ -3,9 +3,9 @@ import * as api from '../../services/api';
 import { scrollToTop } from '../../utils/scroll';
 
 const TASK_TYPE_STYLES = {
-  Watch: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30',
-  Practice: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
-  Revision: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+  Watch: 'bg-[#EEF2FF] text-[#3B5BDB] border-[#C7D2FE]',
+  Practice: 'bg-[#DCFCE7] text-[#15803D] border-[#A7F3D0]',
+  Revision: 'bg-[#FEF3C7] text-[#B45309] border-[#FDE68A]',
 };
 
 export default function TracksView({
@@ -25,6 +25,10 @@ export default function TracksView({
   const [detailError, setDetailError] = useState(null);
   const [updatingTaskId, setUpdatingTaskId] = useState(null);
 
+  // Explicit skill status update state for the track completion card (Correction 2)
+  const [savingSkillStatus, setSavingSkillStatus] = useState(false);
+  const [skillStatusFeedback, setSkillStatusFeedback] = useState(null);
+
   const loadTracksList = useCallback(async () => {
     setLoadingList(true);
     setListError(null);
@@ -42,6 +46,7 @@ export default function TracksView({
     if (!trackId) return;
     setLoadingDetail(true);
     setDetailError(null);
+    setSkillStatusFeedback(null);
     try {
       const res = await api.getTrackById(trackId);
       setActiveTrack(res.track || null);
@@ -67,7 +72,6 @@ export default function TracksView({
     }
   }, [selectedTrackId, loadTrackDetail, loadTracksList]);
 
-  // Reset scroll to top after navigation & data loading completes (not during loading)
   useEffect(() => {
     if (selectedTrackId && !loadingDetail) {
       scrollToTop();
@@ -79,6 +83,7 @@ export default function TracksView({
   const handleBackToList = () => {
     setSelectedTrackId(null);
     setActiveTrack(null);
+    setSkillStatusFeedback(null);
     if (typeof onClearInitialTrack === 'function') {
       onClearInitialTrack();
     }
@@ -122,27 +127,76 @@ export default function TracksView({
     }
   };
 
+  // Correction 2: Student explicitly chooses "Mark as Known" or "Keep as Learning"
+  // Persisted via existing authenticated Profile API (never triggered automatically)
+  const handleExplicitSkillChoice = async (chosenStatus) => {
+    if (!activeTrack || savingSkillStatus) return;
+    const skillName = String(activeTrack.targetSkill || activeTrack.topic || '').trim();
+    if (!skillName) return;
+
+    setSavingSkillStatus(true);
+    setSkillStatusFeedback(null);
+    setDetailError(null);
+
+    try {
+      const currentProfileData = await api.getProfile();
+      const existingSkills = Array.isArray(currentProfileData?.skills)
+        ? currentProfileData.skills.map((s) => ({
+            skill: s.skill,
+            status: s.status,
+          }))
+        : [];
+
+      const lowerTarget = skillName.toLowerCase();
+      let found = false;
+      const nextSkills = existingSkills.map((item) => {
+        if (String(item.skill).trim().toLowerCase() === lowerTarget) {
+          found = true;
+          return { skill: item.skill, status: chosenStatus };
+        }
+        return item;
+      });
+
+      if (!found) {
+        nextSkills.push({ skill: skillName, status: chosenStatus });
+      }
+
+      await api.updateProfile({ skills: nextSkills });
+      setSkillStatusFeedback(
+        `Saved! "${skillName}" is now marked as ${chosenStatus} in your profile.`
+      );
+    } catch (err) {
+      setDetailError(
+        err.message || 'Could not update skill status directly. Please use Update My Skills.'
+      );
+    } finally {
+      setSavingSkillStatus(false);
+    }
+  };
+
   // =========================================================================
-  // VIEW 1: Single Learning Track Detail & Study Schedule
+  // VIEW 1: Single Learning Track Detail & Study Schedule (Screenshot 4)
   // =========================================================================
   if (selectedTrackId) {
     if (loadingDetail) {
       return (
-        <div className="flex flex-col items-center justify-center p-12 text-slate-400">
-          <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-          <p className="text-sm">Loading learning track schedule...</p>
+        <div className="flex flex-col items-center justify-center p-12 su-card text-[#5A567A]">
+          <div className="w-9 h-9 border-4 border-[#4F7DF3] border-t-transparent rounded-full animate-spin mb-4" />
+          <p className="text-sm font-semibold text-[#1E1B3A]">
+            Loading learning track schedule...
+          </p>
         </div>
       );
     }
 
     if (detailError && !activeTrack) {
       return (
-        <div className="w-full max-w-4xl mx-auto p-6 bg-slate-800/90 border border-slate-700 rounded-2xl space-y-4">
-          <p className="text-sm text-rose-400">{detailError}</p>
+        <div className="w-full max-w-4xl mx-auto p-6 su-card space-y-4">
+          <p className="text-sm text-[#B91C1C] font-medium">{detailError}</p>
           <button
             type="button"
             onClick={handleBackToList}
-            className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs font-medium text-white cursor-pointer"
+            className="px-5 py-2.5 rounded-full bg-[#1E1B3A] hover:bg-[#2E2A54] text-xs font-bold text-white cursor-pointer"
           >
             ← Back to My Tracks
           </button>
@@ -169,94 +223,187 @@ export default function TracksView({
 
     return (
       <div className="w-full max-w-5xl mx-auto space-y-6">
-        {/* Track Header Card */}
-        <div className="bg-slate-800/90 border border-slate-700/80 rounded-2xl p-6 sm:p-8 shadow-2xl">
-          <div className="flex flex-wrap items-center justify-between gap-4 pb-6 border-b border-slate-700/80">
-            <div>
+        {/* Track Header & Overview Card (Screenshot 4 style) */}
+        <div className="su-card p-6 sm:p-8">
+          <div className="flex flex-wrap items-start justify-between gap-4 pb-6 border-b border-[#E8E4F8]">
+            <div className="space-y-2">
               <button
                 type="button"
                 onClick={handleBackToList}
-                className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-white mb-2 transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#4F7DF3] hover:text-[#1E1B3A] mb-1 transition-colors cursor-pointer"
               >
                 <span>← Back to All My Tracks</span>
               </button>
               <div className="flex flex-wrap items-center gap-2">
                 <span
-                  className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border uppercase tracking-wider ${
+                  className={`text-xs font-extrabold px-3 py-0.5 rounded-full border uppercase tracking-wider ${
                     isCompleted
-                      ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
-                      : 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30'
+                      ? 'bg-[#DCFCE7] text-[#15803D] border-[#A7F3D0]'
+                      : 'bg-[#EEF2FF] text-[#3B5BDB] border-[#C7D2FE]'
                   }`}
                 >
                   {activeTrack.status}
                 </span>
-                <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-700/70 text-slate-300 border border-slate-600">
+                <span className="text-xs font-bold px-3 py-0.5 rounded-full bg-[#F7F5FF] text-[#4B4869] border border-[#DFD9F7]">
                   {activeTrack.level}
                 </span>
                 {activeTrack.availableTime && (
-                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-700/70 text-slate-300 border border-slate-600">
+                  <span className="text-xs font-bold px-3 py-0.5 rounded-full bg-[#F7F5FF] text-[#4B4869] border border-[#DFD9F7]">
                     {activeTrack.availableTime}
                   </span>
                 )}
               </div>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-white mt-2">
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-[#1E1B3A] tracking-tight">
                 {activeTrack.topic}
-              </h2>
+              </h1>
               {activeTrack.learningGoal && (
-                <p className="text-xs sm:text-sm text-slate-400 mt-1">
-                  Goal: <span className="text-slate-200">{activeTrack.learningGoal}</span>
+                <p className="text-xs sm:text-sm text-[#6E6A8F]">
+                  Goal: <span className="text-[#1E1B3A] font-semibold">{activeTrack.learningGoal}</span>
                 </p>
               )}
             </div>
 
-            <div className="flex flex-wrap items-center gap-2.5">
-              {activeTrack.opportunityId && activeTrack.opportunityAvailable && onViewOpportunity && (
-                <button
-                  type="button"
-                  onClick={() => onViewOpportunity(activeTrack.opportunityId)}
-                  className="px-4 py-2.5 rounded-xl bg-slate-700/90 hover:bg-slate-700 border border-slate-600 text-indigo-300 hover:text-white font-semibold text-xs sm:text-sm transition-colors cursor-pointer inline-flex items-center gap-1.5"
+            <div className="flex flex-col items-end gap-3">
+              <div className="text-right">
+                <span className="text-3xl sm:text-4xl font-extrabold text-[#4F7DF3]">
+                  {activeTrack.progressPercentage}%
+                </span>
+                <p className="text-xs text-[#6E6A8F] font-semibold">
+                  {activeTrack.completedTasks} of {activeTrack.totalTasks} tasks done
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {activeTrack.opportunityId && activeTrack.opportunityAvailable && onViewOpportunity && (
+                  <button
+                    type="button"
+                    onClick={() => onViewOpportunity(activeTrack.opportunityId)}
+                    className="px-4 py-2 rounded-full bg-[#F7F5FF] hover:bg-[#EEF2FF] border border-[#DFD9F7] text-[#3B5BDB] font-bold text-xs transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                  >
+                    <span>View Opportunity</span>
+                    <span aria-hidden="true">→</span>
+                  </button>
+                )}
+                <a
+                  href={activeTrack.resourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-5 py-2.5 rounded-full bg-[#4F7DF3] hover:bg-[#3B6CE6] text-white font-bold text-xs transition-all shadow-xs inline-flex items-center gap-1.5"
                 >
-                  <span>View Opportunity</span>
-                  <span aria-hidden="true">→</span>
-                </button>
-              )}
-              <a
-                href={activeTrack.resourceUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs sm:text-sm transition-all shadow-lg shadow-indigo-600/30 inline-flex items-center gap-2"
+                  <span>Watch Video on YouTube</span>
+                  <span aria-hidden="true">↗</span>
+                </a>
+              </div>
+            </div>
+          </div>
+
+          {/* Full-width Progress Bar */}
+          <div className="mt-5 space-y-2">
+            <div className="w-full h-3 bg-[#E8E4F8] rounded-full overflow-hidden">
+              <div
+                className={`h-full transition-all duration-300 rounded-full ${
+                  isCompleted ? 'bg-[#16A34A]' : 'bg-[#4F7DF3]'
+                }`}
+                style={{ width: `${activeTrack.progressPercentage}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Compact Day Summary Cards (Screenshot 4 inspired, built from real dayNumbers) */}
+          {dayNumbers.length > 0 && (
+            <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              {dayNumbers.map((day) => {
+                const dTasks = tasksByDay[day] || [];
+                const dDone = dTasks.filter((t) => t.completed).length;
+                const dAllDone = dTasks.length > 0 && dDone === dTasks.length;
+                const dInProgress = dDone > 0 && !dAllDone;
+                return (
+                  <div
+                    key={`summary-day-${day}`}
+                    className={`p-3.5 rounded-2xl border ${
+                      dAllDone
+                        ? 'bg-[#F0FDF4] border-[#BBF7D0]'
+                        : dInProgress
+                        ? 'bg-[#EEF2FF] border-[#C7D2FE]'
+                        : 'bg-[#F7F5FF] border-[#E4DFFA]'
+                    }`}
+                  >
+                    <span
+                      className={`text-[10px] font-extrabold uppercase tracking-wider block ${
+                        dAllDone
+                          ? 'text-[#15803D]'
+                          : dInProgress
+                          ? 'text-[#3B5BDB]'
+                          : 'text-[#726E91]'
+                      }`}
+                    >
+                      {dAllDone ? 'Completed' : dInProgress ? 'In progress' : 'Upcoming'}
+                    </span>
+                    <p className="text-sm font-extrabold text-[#1E1B3A] mt-0.5">
+                      Day {day}
+                    </p>
+                    <p className="text-[11px] text-[#6E6A8F] font-medium">
+                      {dDone}/{dTasks.length} tasks
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Resource Info Strip */}
+          <div className="mt-5 flex items-center gap-3.5 bg-[#F7F5FF] p-3.5 rounded-2xl border border-[#E4DFFA]">
+            {activeTrack.resourceThumbnail && (
+              <div className="relative w-24 aspect-video rounded-xl overflow-hidden bg-[#1E1B3A] shrink-0">
+                <img
+                  src={activeTrack.resourceThumbnail}
+                  alt={activeTrack.resourceTitle}
+                  className="w-full h-full object-cover"
+                />
+                {activeTrack.resourceDuration && (
+                  <span className="absolute bottom-1 right-1 px-1.5 py-0.2 rounded bg-black/85 text-white font-mono text-[10px]">
+                    {activeTrack.resourceDuration}
+                  </span>
+                )}
+              </div>
+            )}
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold text-[#4F7DF3] truncate">
+                {activeTrack.resourceChannel || 'YouTube Resource'}
+              </p>
+              <h3
+                className="text-xs sm:text-sm font-extrabold text-[#1E1B3A] line-clamp-2 mt-0.5"
+                title={activeTrack.resourceTitle}
               >
-                <span>Watch Video on YouTube</span>
-                <span aria-hidden="true">↗</span>
-              </a>
+                {activeTrack.resourceTitle}
+              </h3>
             </div>
           </div>
 
           {/* Opportunity Context Strip (only when linked to an opportunity) */}
           {hasOpportunityLink && (
-            <div className="mt-4 p-4 rounded-xl bg-indigo-950/40 border border-indigo-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="mt-4 p-4 rounded-2xl bg-[#F7F5FF] border border-[#DFD9F7] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                  <span className="text-[11px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-[#EEF2FF] text-[#3B5BDB] border border-[#C7D2FE]">
                     Opportunity-Linked Track
                   </span>
-                  <span className="text-xs font-semibold text-emerald-300">
+                  <span className="text-xs font-bold text-[#15803D]">
                     Target Skill: {activeTrack.targetSkill || activeTrack.topic}
                   </span>
                 </div>
                 {activeTrack.opportunityAvailable && activeTrack.opportunityTitle ? (
-                  <p className="text-xs sm:text-sm font-semibold text-white">
+                  <p className="text-xs sm:text-sm font-bold text-[#1E1B3A]">
                     Preparing for:{' '}
-                    <span className="text-indigo-300">{activeTrack.opportunityTitle}</span>
+                    <span className="text-[#4F7DF3]">{activeTrack.opportunityTitle}</span>
                     {activeTrack.opportunityOrganization ? (
-                      <span className="text-slate-400 font-normal">
+                      <span className="text-[#6E6A8F] font-medium">
                         {' '}
                         ({activeTrack.opportunityOrganization})
                       </span>
                     ) : null}
                   </p>
                 ) : (
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-[#6E6A8F]">
                     Originally created for an opportunity that is no longer available in the catalog.
                   </p>
                 )}
@@ -273,7 +420,7 @@ export default function TracksView({
                         targetSkill: activeTrack.targetSkill || activeTrack.topic,
                       })
                     }
-                    className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-medium text-slate-200 transition-colors cursor-pointer"
+                    className="px-3.5 py-1.5 rounded-full bg-white hover:bg-[#EEF2FF] border border-[#DFD9F7] text-xs font-bold text-[#1E1B3A] transition-colors cursor-pointer"
                   >
                     Update My Skills
                   </button>
@@ -282,7 +429,7 @@ export default function TracksView({
                   <button
                     type="button"
                     onClick={() => onViewOpportunity(activeTrack.opportunityId)}
-                    className="px-3 py-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 text-xs font-semibold text-indigo-300 transition-colors cursor-pointer"
+                    className="px-3.5 py-1.5 rounded-full bg-[#EEF2FF] hover:bg-[#E0E7FF] border border-[#C7D2FE] text-xs font-bold text-[#3B5BDB] transition-colors cursor-pointer"
                   >
                     View Opportunity →
                   </button>
@@ -292,135 +439,109 @@ export default function TracksView({
           )}
 
           {detailError && (
-            <div className="mt-4 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-center justify-between">
+            <div
+              role="alert"
+              className="mt-4 p-3.5 rounded-2xl bg-[#FEF2F2] border border-[#FECACA] text-[#B91C1C] text-xs font-medium flex items-center justify-between"
+            >
               <span>{detailError}</span>
               <button
                 type="button"
                 onClick={() => setDetailError(null)}
-                className="text-rose-300 hover:text-white font-bold ml-2 cursor-pointer"
+                className="text-[#991B1B] hover:text-[#7F1D1D] font-bold ml-2 cursor-pointer"
               >
                 ✕
               </button>
             </div>
           )}
 
-          {/* Resource Info + Progress Bar */}
-          <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6 items-center">
-            <div className="flex items-center gap-3.5 bg-slate-900/75 p-3 rounded-xl border border-slate-700/70">
-              {activeTrack.resourceThumbnail && (
-                <div className="relative w-28 aspect-video rounded-lg overflow-hidden bg-slate-950 shrink-0">
-                  <img
-                    src={activeTrack.resourceThumbnail}
-                    alt={activeTrack.resourceTitle}
-                    className="w-full h-full object-cover"
-                  />
-                  {activeTrack.resourceDuration && (
-                    <span className="absolute bottom-1 right-1 px-1.5 py-0.2 rounded bg-black/85 text-white font-mono text-[10px]">
-                      {activeTrack.resourceDuration}
+          {/* Track Completion Next-Step Guidance (Correction 2: Explicit student choice, persisted via Profile API) */}
+          {isCompleted && (
+            <div className="mt-6 p-5 sm:p-6 su-hero-mint space-y-4">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="space-y-1.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-extrabold uppercase tracking-wider px-3 py-0.5 rounded-full bg-[#DCFCE7] text-[#15803D] border border-[#86EFAC]">
+                      All Tasks Completed (100%)
                     </span>
+                    <span className="text-xs font-bold text-[#1E1B3A]">
+                      Next Step: Choose Your Skill Status
+                    </span>
+                  </div>
+                  <p className="text-xs text-[#4B4869] leading-relaxed max-w-2xl">
+                    Great job completing your study schedule for{' '}
+                    <strong className="text-[#1E1B3A]">
+                      {activeTrack.targetSkill || activeTrack.topic}
+                    </strong>
+                    ! Completing a learning track does not automatically mark a skill as Known or
+                    guarantee official eligibility. Choose how you want to record this skill in your
+                    profile below, or reanalyze your target opportunity.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    disabled={savingSkillStatus}
+                    onClick={() => handleExplicitSkillChoice('Knows')}
+                    className="px-4 py-2.5 rounded-full bg-[#15803D] hover:bg-[#166534] disabled:opacity-50 text-white font-bold text-xs transition-all cursor-pointer shadow-xs"
+                  >
+                    ✓ Mark as Known
+                  </button>
+                  <button
+                    type="button"
+                    disabled={savingSkillStatus}
+                    onClick={() => handleExplicitSkillChoice('Learning')}
+                    className="px-4 py-2.5 rounded-full bg-white hover:bg-[#F7F5FF] disabled:opacity-50 border border-[#CDECE1] text-[#1E1B3A] font-bold text-xs transition-all cursor-pointer"
+                  >
+                    ◎ Keep as Learning
+                  </button>
+                  {onUpdateProfileSkills && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onUpdateProfileSkills({
+                          opportunityId: activeTrack.opportunityId,
+                          opportunityTitle: activeTrack.opportunityTitle,
+                          targetSkill: activeTrack.targetSkill || activeTrack.topic,
+                        })
+                      }
+                      className="px-4 py-2.5 rounded-full bg-[#1E1B3A] hover:bg-[#2E2A54] text-white font-bold text-xs transition-all cursor-pointer shadow-xs"
+                    >
+                      Update My Skills
+                    </button>
+                  )}
+                  {activeTrack.opportunityId && activeTrack.opportunityAvailable && onViewOpportunity && (
+                    <button
+                      type="button"
+                      onClick={() => onViewOpportunity(activeTrack.opportunityId)}
+                      className="px-4 py-2.5 rounded-full bg-[#4F7DF3] hover:bg-[#3B6CE6] text-white font-bold text-xs transition-all cursor-pointer shadow-xs"
+                    >
+                      Reanalyze Opportunity →
+                    </button>
                   )}
                 </div>
-              )}
-              <div className="min-w-0">
-                <p className="text-[11px] font-semibold text-indigo-400 truncate">
-                  {activeTrack.resourceChannel || 'YouTube Resource'}
-                </p>
-                <h3
-                  className="text-xs sm:text-sm font-bold text-white line-clamp-2 mt-0.5"
-                  title={activeTrack.resourceTitle}
-                >
-                  {activeTrack.resourceTitle}
-                </h3>
               </div>
-            </div>
 
-            {/* Overall Progress Bar */}
-            <div className="lg:col-span-2 bg-slate-900/75 p-4 rounded-xl border border-slate-700/70 space-y-2.5">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-slate-300 uppercase tracking-wider">
-                  Overall Track Progress
-                </span>
-                <span className="font-mono font-bold text-white">
-                  {activeTrack.completedTasks} / {activeTrack.totalTasks} tasks completed (
-                  <span className={isCompleted ? 'text-emerald-400' : 'text-indigo-400'}>
-                    {activeTrack.progressPercentage}%
-                  </span>
-                  )
-                </span>
-              </div>
-              <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
+              {skillStatusFeedback && (
                 <div
-                  className={`h-full transition-all duration-300 rounded-full ${
-                    isCompleted ? 'bg-emerald-500' : 'bg-indigo-500'
-                  }`}
-                  style={{ width: `${activeTrack.progressPercentage}%` }}
-                ></div>
-              </div>
-              <p className="text-[11px] text-slate-400">
-                {isCompleted
-                  ? 'All tasks in this learning track are completed! You can still review or uncheck tasks below.'
-                  : 'Check off tasks below as you watch the course, practice concepts, and revise.'}
-              </p>
-            </div>
-          </div>
-
-          {/* Track Completion Next-Step Guidance */}
-          {isCompleted && (
-            <div className="mt-6 p-5 rounded-2xl bg-emerald-950/30 border border-emerald-500/40 flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="space-y-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                    All Tasks Completed (100%)
-                  </span>
-                  <span className="text-xs font-semibold text-white">
-                    Next Step: Update Your Profile Skills
-                  </span>
+                  role="status"
+                  className="px-4 py-2.5 rounded-2xl bg-white border border-[#86EFAC] text-[#14532D] text-xs font-bold flex items-center justify-between"
+                >
+                  <span>{skillStatusFeedback}</span>
+                  <button
+                    type="button"
+                    onClick={() => setSkillStatusFeedback(null)}
+                    className="text-[#15803D] font-bold ml-2 cursor-pointer"
+                  >
+                    ✕
+                  </button>
                 </div>
-                <p className="text-xs text-slate-300 leading-relaxed max-w-2xl">
-                  Great job completing your study schedule for{' '}
-                  <strong className="text-white">
-                    {activeTrack.targetSkill || activeTrack.topic}
-                  </strong>
-                  ! Completing a learning track does not automatically mark a skill as Known or
-                  guarantee official eligibility. When you feel ready, update your skill status in
-                  your profile ({' '}
-                  <span className="text-sky-300 font-medium">Learning</span> or{' '}
-                  <span className="text-emerald-300 font-medium">Knows</span>) and reanalyze your
-                  target opportunity.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-                {onUpdateProfileSkills && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      onUpdateProfileSkills({
-                        opportunityId: activeTrack.opportunityId,
-                        opportunityTitle: activeTrack.opportunityTitle,
-                        targetSkill: activeTrack.targetSkill || activeTrack.topic,
-                      })
-                    }
-                    className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs sm:text-sm transition-all shadow-lg shadow-emerald-600/25 cursor-pointer"
-                  >
-                    Update My Skills
-                  </button>
-                )}
-                {activeTrack.opportunityId && activeTrack.opportunityAvailable && onViewOpportunity && (
-                  <button
-                    type="button"
-                    onClick={() => onViewOpportunity(activeTrack.opportunityId)}
-                    className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs sm:text-sm transition-all shadow-lg shadow-indigo-600/25 cursor-pointer"
-                  >
-                    Reanalyze Opportunity →
-                  </button>
-                )}
-              </div>
+              )}
             </div>
           )}
         </div>
 
-        {/* Daily Study Schedule with Interactive Checkboxes */}
+        {/* Daily Study Schedule with Interactive Checkboxes (Screenshot 4 task checklist) */}
         <div className="space-y-4">
           {dayNumbers.map((day) => {
             const dayTasks = tasksByDay[day] || [];
@@ -430,18 +551,18 @@ export default function TracksView({
             return (
               <div
                 key={day}
-                className="bg-slate-800/80 border border-slate-700/70 rounded-2xl p-5 space-y-3"
+                className="su-card p-6 space-y-3.5"
               >
-                <div className="flex items-center justify-between border-b border-slate-700/60 pb-2.5">
+                <div className="flex items-center justify-between border-b border-[#E8E4F8] pb-3">
                   <div className="flex items-center gap-2.5">
-                    <span className="px-2.5 py-1 rounded-lg bg-indigo-600/20 border border-indigo-500/30 text-indigo-300 text-xs font-bold">
+                    <span className="px-3 py-1 rounded-full bg-[#EEF2FF] border border-[#C7D2FE] text-[#3B5BDB] text-xs font-extrabold">
                       Day {day}
                     </span>
-                    <span className="text-xs text-slate-400">
+                    <span className="text-xs font-semibold text-[#6E6A8F]">
                       {dayCompletedCount}/{dayTasks.length} completed
                     </span>
                   </div>
-                  <span className="text-xs font-mono text-slate-400">
+                  <span className="text-xs font-bold text-[#6E6A8F]">
                     {dayMins} mins total
                   </span>
                 </div>
@@ -452,34 +573,36 @@ export default function TracksView({
                     return (
                       <label
                         key={task.id}
-                        className={`p-3.5 rounded-xl border transition-all flex items-start justify-between gap-3 cursor-pointer ${
+                        className={`p-4 rounded-2xl border transition-all flex items-start justify-between gap-3 cursor-pointer ${
                           task.completed
-                            ? 'bg-emerald-950/20 border-emerald-500/30'
-                            : 'bg-slate-900/75 border-slate-700/60 hover:border-slate-600'
+                            ? 'bg-[#F0FDF4] border-[#BBF7D0]'
+                            : 'bg-[#F7F5FF] border-[#E4DFFA] hover:border-[#C7D2FE]'
                         }`}
                       >
-                        <div className="flex items-start gap-3">
-                          <input
-                            type="checkbox"
-                            checked={task.completed}
-                            disabled={isUpdating}
-                            onChange={() => handleToggleTask(task)}
-                            className="mt-1 h-4 w-4 rounded border-slate-600 accent-emerald-500 cursor-pointer"
-                          />
+                        <div className="flex items-start gap-3.5">
+                          <div className="relative flex items-center justify-center mt-0.5">
+                            <input
+                              type="checkbox"
+                              checked={task.completed}
+                              disabled={isUpdating}
+                              onChange={() => handleToggleTask(task)}
+                              className="h-5 w-5 rounded-full border-[#C7D2FE] accent-[#16A34A] cursor-pointer"
+                            />
+                          </div>
                           <div className="space-y-1">
                             <div className="flex flex-wrap items-center gap-2">
                               <span
-                                className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded border ${
+                                className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
                                   TASK_TYPE_STYLES[task.taskType] || TASK_TYPE_STYLES.Watch
                                 }`}
                               >
                                 {task.taskType}
                               </span>
                               <span
-                                className={`text-sm font-bold ${
+                                className={`text-sm font-extrabold ${
                                   task.completed
-                                    ? 'line-through text-slate-400'
-                                    : 'text-white'
+                                    ? 'line-through text-[#726E91]'
+                                    : 'text-[#1E1B3A]'
                                 }`}
                               >
                                 {task.title}
@@ -487,7 +610,7 @@ export default function TracksView({
                             </div>
                             <p
                               className={`text-xs leading-relaxed ${
-                                task.completed ? 'text-slate-500' : 'text-slate-300'
+                                task.completed ? 'text-[#726E91]' : 'text-[#4B4869]'
                               }`}
                             >
                               {task.description}
@@ -496,7 +619,7 @@ export default function TracksView({
                         </div>
 
                         <div className="shrink-0 flex items-center gap-2">
-                          <span className="px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-xs font-mono text-slate-300">
+                          <span className="px-3 py-1 rounded-full bg-white border border-[#DFD9F7] text-xs font-bold text-[#6E6A8F]">
                             {task.estimatedMinutes}m
                           </span>
                         </div>
@@ -517,17 +640,17 @@ export default function TracksView({
   // =========================================================================
   return (
     <div className="w-full max-w-6xl mx-auto space-y-6">
-      <div className="bg-slate-800/90 border border-slate-700/80 rounded-2xl p-6 sm:p-8 shadow-2xl">
+      <div className="su-card p-6 sm:p-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-400/30 text-indigo-400 text-xs font-semibold uppercase tracking-wider mb-2">
-              Milestone 4 — Personalized Learning Tracks
-            </div>
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+          <div className="space-y-1.5">
+            <span className="text-xs font-extrabold uppercase tracking-widest text-[#4F7DF3] block">
+              Your Learning Plan
+            </span>
+            <h1 className="text-2xl sm:text-4xl font-extrabold text-[#1E1B3A] tracking-tight">
               My Learning Tracks
-            </h2>
-            <p className="text-sm text-slate-400 mt-1">
-              Track your daily video sessions, practice exercises, and concept revisions.
+            </h1>
+            <p className="text-sm text-[#4B4869]">
+              Structured paths with clear milestones, manageable tasks, and visible momentum.
             </p>
           </div>
 
@@ -535,7 +658,7 @@ export default function TracksView({
             <button
               type="button"
               onClick={onNavigateToLearn}
-              className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs sm:text-sm transition-colors cursor-pointer self-start sm:self-center"
+              className="px-5 py-3 rounded-full bg-[#4F7DF3] hover:bg-[#3B6CE6] text-white font-bold text-xs sm:text-sm transition-colors cursor-pointer self-start sm:self-center shadow-xs"
             >
               + Create New Track
             </button>
@@ -544,28 +667,35 @@ export default function TracksView({
       </div>
 
       {listError && (
-        <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-sm">
+        <div
+          role="alert"
+          className="p-4 rounded-2xl bg-[#FEF2F2] border border-[#FECACA] text-[#B91C1C] text-sm font-medium"
+        >
           {listError}
         </div>
       )}
 
       {loadingList ? (
-        <div className="flex flex-col items-center justify-center p-12 text-slate-400">
-          <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-          <p className="text-sm">Loading your saved learning tracks...</p>
+        <div className="flex flex-col items-center justify-center p-12 su-card text-[#5A567A]">
+          <div className="w-9 h-9 border-4 border-[#4F7DF3] border-t-transparent rounded-full animate-spin mb-4" />
+          <p className="text-sm font-semibold text-[#1E1B3A]">
+            Loading your saved learning tracks...
+          </p>
         </div>
       ) : tracks.length === 0 ? (
-        <div className="p-12 text-center bg-slate-800/50 rounded-2xl border border-dashed border-slate-700 space-y-4">
-          <h3 className="text-lg font-bold text-white">No Learning Tracks Saved Yet</h3>
-          <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto">
+        <div className="p-12 text-center su-card space-y-4">
+          <h3 className="text-lg font-extrabold text-[#1E1B3A]">
+            No Learning Tracks Saved Yet
+          </h3>
+          <p className="text-xs sm:text-sm text-[#6E6A8F] max-w-md mx-auto leading-relaxed">
             Discover YouTube learning resources on the Learn page and click{' '}
-            <strong className="text-slate-200">Create My Track</strong> on any video to generate your personalized study plan.
+            <strong className="text-[#1E1B3A]">Create My Track</strong> on any video to generate your personalized study plan.
           </p>
           {onNavigateToLearn && (
             <button
               type="button"
               onClick={onNavigateToLearn}
-              className="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs sm:text-sm transition-colors cursor-pointer"
+              className="px-6 py-3 rounded-full bg-[#4F7DF3] hover:bg-[#3B6CE6] text-white font-bold text-xs sm:text-sm transition-colors cursor-pointer shadow-xs"
             >
               Discover Learning Resources
             </button>
@@ -579,11 +709,11 @@ export default function TracksView({
             return (
               <div
                 key={track.id}
-                className="bg-slate-800/90 border border-slate-700/80 rounded-2xl overflow-hidden shadow-xl flex flex-col justify-between hover:border-slate-600 transition-all"
+                className="su-card-interactive overflow-hidden flex flex-col justify-between"
               >
                 <div>
                   {/* Thumbnail */}
-                  <div className="relative aspect-video bg-slate-950 overflow-hidden">
+                  <div className="relative aspect-video bg-[#1E1B3A] overflow-hidden">
                     {track.resourceThumbnail && (
                       <img
                         src={track.resourceThumbnail}
@@ -592,19 +722,19 @@ export default function TracksView({
                         loading="lazy"
                       />
                     )}
-                    <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
+                    <div className="absolute top-3 left-3 flex items-center gap-1.5">
                       <span
-                        className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider border backdrop-blur-xs ${
+                        className={`px-3 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wider border shadow-xs ${
                           isCompleted
-                            ? 'bg-emerald-500/90 text-white border-emerald-400'
-                            : 'bg-indigo-600/90 text-white border-indigo-400'
+                            ? 'bg-[#DCFCE7] text-[#15803D] border-[#86EFAC]'
+                            : 'bg-white/95 text-[#3B5BDB] border-[#C7D2FE]'
                         }`}
                       >
                         {track.status}
                       </span>
                     </div>
                     {track.resourceDuration && (
-                      <span className="absolute bottom-2.5 right-2.5 px-2 py-0.5 rounded-md bg-black/85 text-white font-mono text-[11px] font-semibold">
+                      <span className="absolute bottom-2.5 right-2.5 px-2.5 py-0.5 rounded-full bg-[#1E1B3A]/90 text-white font-mono text-[11px] font-bold">
                         {track.resourceDuration}
                       </span>
                     )}
@@ -613,16 +743,16 @@ export default function TracksView({
                   {/* Body */}
                   <div className="p-5 space-y-3">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-bold uppercase tracking-wider text-indigo-400">
+                      <span className="text-xs font-extrabold uppercase tracking-wider text-[#4F7DF3]">
                         {track.topic}
                       </span>
-                      <span className="text-[11px] px-2 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700">
+                      <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-[#F7F5FF] text-[#4B4869] border border-[#DFD9F7]">
                         {track.level}
                       </span>
                     </div>
 
                     <h3
-                      className="text-base font-bold text-white line-clamp-2 leading-snug"
+                      className="text-base font-extrabold text-[#1E1B3A] line-clamp-2 leading-snug"
                       title={track.resourceTitle}
                     >
                       {track.resourceTitle}
@@ -630,27 +760,27 @@ export default function TracksView({
 
                     {/* Opportunity Context Box (only for opportunity-linked tracks) */}
                     {hasOpportunityLink && (
-                      <div className="p-3 rounded-xl bg-indigo-950/40 border border-indigo-500/30 space-y-1">
+                      <div className="p-3.5 rounded-2xl bg-[#F7F5FF] border border-[#DFD9F7] space-y-1">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-300">
+                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#3B5BDB]">
                             Bridge My Skill Gap
                           </span>
-                          <span className="text-[11px] font-semibold text-emerald-300">
+                          <span className="text-[11px] font-bold text-[#15803D]">
                             Target Skill: {track.targetSkill || track.topic}
                           </span>
                         </div>
                         {track.opportunityAvailable && track.opportunityTitle ? (
                           <p
-                            className="text-xs text-slate-200 font-medium line-clamp-1"
+                            className="text-xs text-[#1E1B3A] font-bold line-clamp-1"
                             title={track.opportunityTitle}
                           >
                             Preparing for:{' '}
-                            <span className="text-indigo-300 font-semibold">
+                            <span className="text-[#4F7DF3]">
                               {track.opportunityTitle}
                             </span>
                           </p>
                         ) : (
-                          <p className="text-[11px] text-slate-400">
+                          <p className="text-[11px] text-[#726E91]">
                             Linked opportunity is no longer available
                           </p>
                         )}
@@ -660,24 +790,24 @@ export default function TracksView({
                     {/* Progress Section */}
                     <div className="pt-2 space-y-1.5">
                       <div className="flex items-center justify-between text-xs">
-                        <span className="text-slate-400">
+                        <span className="text-[#6E6A8F] font-semibold">
                           {track.completedTasks} / {track.totalTasks} tasks
                         </span>
                         <span
-                          className={`font-mono font-bold ${
-                            isCompleted ? 'text-emerald-400' : 'text-indigo-400'
+                          className={`font-extrabold ${
+                            isCompleted ? 'text-[#15803D]' : 'text-[#4F7DF3]'
                           }`}
                         >
                           {track.progressPercentage}%
                         </span>
                       </div>
-                      <div className="w-full h-2.5 bg-slate-900 rounded-full overflow-hidden border border-slate-700/80">
+                      <div className="w-full h-2.5 bg-[#E8E4F8] rounded-full overflow-hidden">
                         <div
                           className={`h-full transition-all duration-300 rounded-full ${
-                            isCompleted ? 'bg-emerald-500' : 'bg-indigo-500'
+                            isCompleted ? 'bg-[#16A34A]' : 'bg-[#4F7DF3]'
                           }`}
                           style={{ width: `${track.progressPercentage}%` }}
-                        ></div>
+                        />
                       </div>
                     </div>
                   </div>
@@ -688,7 +818,7 @@ export default function TracksView({
                   <button
                     type="button"
                     onClick={() => setSelectedTrackId(track.id)}
-                    className="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs sm:text-sm transition-all shadow-md shadow-indigo-600/25 cursor-pointer flex items-center justify-center gap-2"
+                    className="w-full py-2.5 px-4 rounded-full bg-[#4F7DF3] hover:bg-[#3B6CE6] text-white font-bold text-xs sm:text-sm transition-all shadow-xs cursor-pointer flex items-center justify-center gap-2"
                   >
                     <span>{isCompleted ? 'Review Completed Track' : 'Continue Learning'}</span>
                     <span aria-hidden="true">→</span>
@@ -697,7 +827,7 @@ export default function TracksView({
                     <button
                       type="button"
                       onClick={() => onViewOpportunity(track.opportunityId)}
-                      className="w-full py-2 px-3 rounded-xl bg-slate-900/90 hover:bg-slate-700/80 border border-slate-700 text-indigo-300 hover:text-white font-semibold text-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                      className="w-full py-2 px-3 rounded-full bg-[#F7F5FF] hover:bg-[#EEF2FF] border border-[#DFD9F7] text-[#3B5BDB] font-bold text-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
                     >
                       <span>View Opportunity</span>
                       <span aria-hidden="true">↗</span>

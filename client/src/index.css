@@ -1,1 +1,131 @@
 @import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-sans: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --bg-canvas: #F3F0FF;
+    --bg-card: #FFFFFF;
+    --bg-subtle: #F7F5FF;
+    --text-heading: #1E1B3A;
+    --text-body: #4B4869;
+    --text-muted: #726E91;
+    --brand-blue: #4F7DF3;
+    --brand-blue-hover: #3B6CE6;
+    --brand-dark: #1E1B3A;
+    --brand-mint-bg: #E6F7F0;
+    --brand-mint-border: #C5EBE0;
+    --border-soft: #E8E4F8;
+    color-scheme: light;
+  }
+
+  html,
+  body {
+    font-family: var(--font-sans);
+    background-color: var(--bg-canvas);
+    background-image:
+      radial-gradient(at 10% 0%, rgba(224, 231, 255, 0.75) 0px, transparent 50%),
+      radial-gradient(at 90% 5%, rgba(230, 247, 240, 0.7) 0px, transparent 45%);
+    background-attachment: fixed;
+    color: var(--text-heading);
+    min-height: 100vh;
+    margin: 0;
+    overflow-x: hidden;
+  }
+}
+
+/* Reusable Soft Lavender & White Card Design Tokens */
+.su-card {
+  background-color: #FFFFFF;
+  border: 1px solid #E8E4F8;
+  border-radius: 1.5rem;
+  box-shadow: 0 10px 30px -12px rgba(30, 27, 58, 0.06), 0 2px 6px -1px rgba(30, 27, 58, 0.03);
+}
+
+.su-card-interactive {
+  background-color: #FFFFFF;
+  border: 1px solid #E8E4F8;
+  border-radius: 1.5rem;
+  box-shadow: 0 10px 30px -12px rgba(30, 27, 58, 0.06), 0 2px 6px -1px rgba(30, 27, 58, 0.03);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.su-card-interactive:hover {
+  transform: translateY(-2px);
+  border-color: #C7D2FE;
+  box-shadow: 0 16px 36px -12px rgba(79, 125, 243, 0.13), 0 4px 10px -2px rgba(30, 27, 58, 0.05);
+}
+
+.su-hero-mint {
+  background: linear-gradient(135deg, #E8F8F2 0%, #FFFFFF 58%, #E6F7F0 100%);
+  border: 1px solid #CDECE1;
+  border-radius: 1.75rem;
+  box-shadow: 0 14px 34px -12px rgba(21, 128, 61, 0.08), 0 4px 12px -2px rgba(30, 27, 58, 0.04);
+}
+
+.su-surface-muted {
+  background-color: #F7F5FF;
+  border: 1px solid #EAE6FA;
+  border-radius: 1rem;
+}
+
+/* Legacy utility aliases kept for safety */
+.glass-card {
+  background-color: #FFFFFF;
+  border: 1px solid #E8E4F8;
+  border-radius: 1.5rem;
+  box-shadow: 0 10px 30px -12px rgba(30, 27, 58, 0.06), 0 2px 6px -1px rgba(30, 27, 58, 0.03);
+}
+
+.glass-panel {
+  background-color: #F7F5FF;
+  border: 1px solid #EAE6FA;
+  border-radius: 1.25rem;
+}
+
+.text-gradient {
+  color: #4F7DF3;
+}
+
+/* Custom subtle scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F3F0FF;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #D5CFF0;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #B8B0E3;
+}
+
+/* Accessible focus rings */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid #4F7DF3;
+  outline-offset: 2px;
+}
+
+/* Respect user reduced-motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .su-card-interactive:hover {
+    transform: none;
+  }
+}

@@ -38,7 +38,6 @@ export default function LearnView({
   const [error, setError] = useState(null);
   const [resultsData, setResultsData] = useState(null);
 
-  // Milestone 4: Track preview generation state
   const [creatingVideoId, setCreatingVideoId] = useState(null);
   const [previewData, setPreviewData] = useState(null);
 
@@ -108,7 +107,7 @@ export default function LearnView({
     ];
   }, [bridgeContext]);
 
-  // Prepopulate topic, Beginner level (Adjustment 4), opportunity goal, and saved time when bridgeContext arrives
+  // Prepopulate topic, Beginner level, opportunity goal, and saved time when bridgeContext arrives
   useEffect(() => {
     if (!bridgeContext?.targetSkill) return;
     const targetClean = String(bridgeContext.targetSkill).trim();
@@ -118,7 +117,6 @@ export default function LearnView({
     const resolvedTopic = catalogMatch ? catalogMatch.title : targetClean;
 
     setTopic(resolvedTopic);
-    // Adjustment 4: Default to Beginner when the student's level for the selected skill is unknown
     setLevel('Beginner');
     if (bridgeContext.opportunityTitle) {
       setGoal(`Prepare for ${bridgeContext.opportunityTitle}`);
@@ -138,7 +136,6 @@ export default function LearnView({
     savedProfileTime,
   ]);
 
-  // Scroll to top when LearnView opens or when navigating between LearnView and TrackPreview
   useEffect(() => {
     scrollToTop();
   }, [previewData, bridgeContext?.opportunityId, bridgeContext?.targetSkill]);
@@ -260,38 +257,38 @@ export default function LearnView({
 
   return (
     <div className="w-full max-w-6xl mx-auto space-y-6">
-      {/* Milestone 7: Opportunity Context Banner when Bridge My Skill Gap is active */}
+      {/* Opportunity Context Banner when Bridge My Skill Gap is active */}
       {bridgeContext?.opportunityId && (
         <div
           role="region"
           aria-label="Opportunity learning context"
-          className="p-4 sm:p-5 rounded-2xl bg-indigo-950/35 border border-indigo-500/40 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+          className="p-5 sm:p-6 su-hero-mint flex flex-col sm:flex-row sm:items-center justify-between gap-4"
         >
           <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider px-3 py-0.5 rounded-full bg-white text-[#3B5BDB] border border-[#C7D2FE]">
                 <span>🎯</span>
                 <span>Bridge My Skill Gap</span>
               </span>
               {bridgeContext.organization && (
-                <span className="text-xs text-slate-300 font-medium">
+                <span className="text-xs text-[#4B4869] font-semibold">
                   {bridgeContext.organization}
                 </span>
               )}
             </div>
-            <h3 className="text-sm sm:text-base font-extrabold text-white">
+            <h3 className="text-base sm:text-lg font-extrabold text-[#1E1B3A]">
               Learning{' '}
-              <span className="text-indigo-300">
+              <span className="text-[#4F7DF3]">
                 {topic || bridgeContext.targetSkill}
               </span>{' '}
               for{' '}
-              <span className="text-emerald-300">
+              <span className="text-[#15803D]">
                 {bridgeContext.opportunityTitle}
               </span>
             </h3>
-            <p className="text-xs text-slate-300">
+            <p className="text-xs text-[#4B4869]">
               Review or adjust your level, daily time, and goal below, then
-              click <strong className="text-white">Find Learning Resources</strong>.
+              click <strong className="text-[#1E1B3A]">Find Learning Resources</strong>.
             </p>
           </div>
 
@@ -302,7 +299,7 @@ export default function LearnView({
                 onClick={() =>
                   onReturnToOpportunity(bridgeContext.opportunityId)
                 }
-                className="text-xs font-semibold px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors cursor-pointer"
+                className="text-xs font-bold px-4 py-2 rounded-full bg-white hover:bg-[#F7F5FF] text-[#1E1B3A] border border-[#CDECE1] transition-colors cursor-pointer shadow-2xs"
               >
                 ← Return to Opportunity
               </button>
@@ -312,7 +309,7 @@ export default function LearnView({
                 href={bridgeContext.sourceUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs font-semibold px-3 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-indigo-300 border border-slate-700 transition-colors inline-flex items-center gap-1"
+                className="text-xs font-bold px-4 py-2 rounded-full bg-white hover:bg-[#EEF2FF] text-[#4F7DF3] border border-[#CDECE1] transition-colors inline-flex items-center gap-1 shadow-2xs"
               >
                 <span>Official Page</span>
                 <span aria-hidden="true">↗</span>
@@ -331,7 +328,7 @@ export default function LearnView({
                     setTopic('');
                   }
                 }}
-                className="text-xs px-2.5 py-2 rounded-xl text-slate-400 hover:text-white transition-colors cursor-pointer"
+                className="text-xs font-bold px-3 py-2 rounded-full text-[#6E6A8F] hover:text-[#1E1B3A] transition-colors cursor-pointer"
                 title="Switch to general learning without opportunity link"
               >
                 ✕ Clear Context
@@ -341,36 +338,39 @@ export default function LearnView({
         </div>
       )}
 
-      {/* Search Header & Form Box */}
-      <div className="bg-slate-800/90 border border-slate-700/80 rounded-2xl p-6 sm:p-8 shadow-2xl backdrop-blur-sm">
-        <div className="text-center max-w-2xl mx-auto mb-8">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-400/30 text-indigo-400 text-xs font-semibold uppercase tracking-wider mb-3">
+      {/* Search Header & Discovery Card (Screenshot 3 inspired) */}
+      <div className="su-card p-6 sm:p-8">
+        <div className="max-w-3xl mb-7 space-y-2">
+          <span className="text-xs font-extrabold tracking-wider text-[#4F7DF3] block">
             {bridgeContext?.opportunityId
-              ? 'Milestone 7 — Bridge My Skill Gap'
-              : 'Milestone 3 — Learning Resource Discovery'}
-          </div>
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-            Discover Real Learning Resources
-          </h2>
-          <p className="text-slate-400 text-sm mt-2">
-            Real YouTube courses and tutorials ranked and personalized by Gemini AI for your pace, level, and goals.
+              ? 'Bridge My Skill Gap'
+              : 'Personalized Learning — Discover Real Learning Resources'}
+          </span>
+          <h1 className="text-2xl sm:text-4xl font-extrabold text-[#1E1B3A] tracking-tight">
+            What do you want to learn?
+          </h1>
+          <p className="text-[#4B4869] text-sm sm:text-base leading-relaxed">
+            Tell us your goal. SkillUP will shortlist long-form YouTube courses that fit your level, schedule, and career direction.
           </p>
         </div>
 
         {/* Search Form */}
         <form onSubmit={handleSearch} className="space-y-6">
           {/* Step 1: Predefined Learning Topic Cards and Dropdown */}
-          <div className="space-y-3">
+          <div className="space-y-3.5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <label htmlFor="topic-select" className="block text-xs font-semibold uppercase tracking-wider text-slate-300">
-                Select Learning Topic <span className="text-rose-400">*</span>
+              <label
+                htmlFor="topic-select"
+                className="block text-xs font-extrabold uppercase tracking-wider text-[#4B4869]"
+              >
+                Select Learning Topic <span className="text-[#DC2626]">*</span>
               </label>
-              <div className="w-full sm:w-72">
+              <div className="w-full sm:w-80">
                 <select
                   id="topic-select"
                   value={topic}
                   onChange={(e) => handleSelectTopic(e.target.value)}
-                  className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs cursor-pointer"
+                  className="w-full px-4 py-2.5 bg-[#F7F5FF] border border-[#DFD9F7] rounded-full text-[#1E1B3A] font-semibold focus:bg-white focus:border-[#4F7DF3] text-xs cursor-pointer"
                 >
                   <option value="">-- Choose from available topics --</option>
                   {availableTopics.map((t) => (
@@ -383,7 +383,7 @@ export default function LearnView({
             </div>
 
             {/* Selectable Topic Cards Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
               {availableTopics.map((item) => {
                 const isSelected = topic === item.title;
                 return (
@@ -391,39 +391,49 @@ export default function LearnView({
                     key={item.id}
                     type="button"
                     onClick={() => handleSelectTopic(item.title)}
-                    className={`p-3.5 rounded-xl border text-left transition-all duration-200 cursor-pointer flex flex-col justify-between ${
+                    className={`p-4 rounded-2xl border text-left transition-all duration-200 cursor-pointer flex flex-col justify-between ${
                       isSelected
-                        ? 'bg-indigo-600/20 border-indigo-500 ring-2 ring-indigo-500/50 shadow-md shadow-indigo-500/10'
-                        : 'bg-slate-900/60 border-slate-700/70 hover:border-slate-600 hover:bg-slate-900/90'
+                        ? 'bg-[#EEF2FF] border-[#4F7DF3] ring-2 ring-[#4F7DF3]/25 shadow-sm'
+                        : 'bg-[#F7F5FF] border-[#E4DFFA] hover:border-[#C7D2FE] hover:bg-white'
                     }`}
                   >
                     <div>
                       <div className="flex items-center justify-between gap-2 mb-1.5">
                         <span className="text-base">{item.icon}</span>
                         <span
-                          className={`text-[10px] uppercase font-semibold tracking-wider px-2 py-0.5 rounded border ${
+                          className={`text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full border ${
                             item.isOpportunitySkill
-                              ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
-                              : 'bg-slate-800 text-slate-400 border-slate-700/60'
+                              ? 'bg-[#DCFCE7] text-[#15803D] border-[#A7F3D0]'
+                              : 'bg-white text-[#5A567A] border-[#DFD9F7]'
                           }`}
                         >
                           {item.category}
                         </span>
                       </div>
-                      <h4 className={`text-sm font-bold ${isSelected ? 'text-indigo-300' : 'text-white'}`}>
+                      <h4
+                        className={`text-sm font-extrabold ${
+                          isSelected ? 'text-[#3B5BDB]' : 'text-[#1E1B3A]'
+                        }`}
+                      >
                         {item.title}
                       </h4>
-                      <p className="text-xs text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                      <p className="text-xs text-[#6E6A8F] mt-1 line-clamp-2 leading-relaxed">
                         {item.description}
                       </p>
                     </div>
 
-                    <div className="mt-2.5 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px]">
-                      <span className={isSelected ? 'text-indigo-400 font-medium' : 'text-slate-500'}>
+                    <div className="mt-3 pt-2 border-t border-[#E4DFFA] flex items-center justify-between text-[11px]">
+                      <span
+                        className={
+                          isSelected
+                            ? 'text-[#3B5BDB] font-bold'
+                            : 'text-[#726E91] font-medium'
+                        }
+                      >
                         {isSelected ? '✓ Selected' : 'Click to select'}
                       </span>
                       {isSelected && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+                        <span className="w-2 h-2 rounded-full bg-[#4F7DF3]" />
                       )}
                     </div>
                   </button>
@@ -433,17 +443,20 @@ export default function LearnView({
           </div>
 
           {/* Step 2: Level, Time, and Goal Controls */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-slate-700/60">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-[#E8E4F8]">
             {/* Current Level */}
             <div>
-              <label htmlFor="level-select" className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
+              <label
+                htmlFor="level-select"
+                className="block text-xs font-extrabold uppercase tracking-wider text-[#4B4869] mb-1.5"
+              >
                 Current Level
               </label>
               <select
                 id="level-select"
                 value={level}
                 onChange={(e) => setLevel(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs sm:text-sm cursor-pointer"
+                className="w-full px-4 py-2.5 bg-[#F7F5FF] border border-[#DFD9F7] rounded-2xl text-[#1E1B3A] font-medium focus:bg-white focus:border-[#4F7DF3] text-xs sm:text-sm cursor-pointer"
               >
                 <option value="Beginner">Beginner (Starting from scratch)</option>
                 <option value="Intermediate">Intermediate (Have basic understanding)</option>
@@ -451,16 +464,19 @@ export default function LearnView({
               </select>
             </div>
 
-            {/* Available Learning Time (Predefined Options) */}
+            {/* Available Learning Time */}
             <div>
-              <label htmlFor="time-select" className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
+              <label
+                htmlFor="time-select"
+                className="block text-xs font-extrabold uppercase tracking-wider text-[#4B4869] mb-1.5"
+              >
                 Available Learning Time
               </label>
               <select
                 id="time-select"
                 value={availableTime}
                 onChange={(e) => setAvailableTime(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs sm:text-sm cursor-pointer"
+                className="w-full px-4 py-2.5 bg-[#F7F5FF] border border-[#DFD9F7] rounded-2xl text-[#1E1B3A] font-medium focus:bg-white focus:border-[#4F7DF3] text-xs sm:text-sm cursor-pointer"
               >
                 <option value="">Select available time</option>
                 {LEARNING_TIMES.map((t) => (
@@ -469,17 +485,16 @@ export default function LearnView({
                   </option>
                 ))}
               </select>
-              {/* Quick Selectable Pills */}
-              <div className="flex flex-wrap gap-1 mt-2">
+              <div className="flex flex-wrap gap-1.5 mt-2">
                 {LEARNING_TIMES.map((t) => (
                   <button
                     key={t.value}
                     type="button"
                     onClick={() => setAvailableTime(t.value)}
-                    className={`text-[10px] px-2 py-0.5 rounded-md transition-colors cursor-pointer ${
+                    className={`text-[10px] px-2.5 py-1 rounded-full transition-colors cursor-pointer font-semibold ${
                       availableTime === t.value
-                        ? 'bg-indigo-600 text-white font-medium'
-                        : 'bg-slate-700/40 text-slate-400 hover:text-slate-200 hover:bg-slate-700'
+                        ? 'bg-[#4F7DF3] text-white'
+                        : 'bg-[#F7F5FF] border border-[#E4DFFA] text-[#5A567A] hover:text-[#1E1B3A]'
                     }`}
                   >
                     {t.label}
@@ -488,16 +503,19 @@ export default function LearnView({
               </div>
             </div>
 
-            {/* Learning Goal (Predefined + Opportunity Context Options) */}
+            {/* Learning Goal */}
             <div>
-              <label htmlFor="goal-select" className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
+              <label
+                htmlFor="goal-select"
+                className="block text-xs font-extrabold uppercase tracking-wider text-[#4B4869] mb-1.5"
+              >
                 Learning Goal
               </label>
               <select
                 id="goal-select"
                 value={goal}
                 onChange={(e) => setGoal(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs sm:text-sm cursor-pointer"
+                className="w-full px-4 py-2.5 bg-[#F7F5FF] border border-[#DFD9F7] rounded-2xl text-[#1E1B3A] font-medium focus:bg-white focus:border-[#4F7DF3] text-xs sm:text-sm cursor-pointer"
               >
                 <option value="">Select learning goal</option>
                 {availableGoals.map((g) => (
@@ -506,17 +524,16 @@ export default function LearnView({
                   </option>
                 ))}
               </select>
-              {/* Quick Selectable Pills */}
-              <div className="flex flex-wrap gap-1 mt-2">
+              <div className="flex flex-wrap gap-1.5 mt-2">
                 {availableGoals.map((g) => (
                   <button
                     key={g.value}
                     type="button"
                     onClick={() => setGoal(g.value)}
-                    className={`text-[10px] px-2 py-0.5 rounded-md transition-colors cursor-pointer truncate max-w-full ${
+                    className={`text-[10px] px-2.5 py-1 rounded-full transition-colors cursor-pointer truncate max-w-full font-semibold ${
                       goal === g.value
-                        ? 'bg-indigo-600 text-white font-medium'
-                        : 'bg-slate-700/40 text-slate-400 hover:text-slate-200 hover:bg-slate-700'
+                        ? 'bg-[#4F7DF3] text-white'
+                        : 'bg-[#F7F5FF] border border-[#E4DFFA] text-[#5A567A] hover:text-[#1E1B3A]'
                     }`}
                   >
                     {g.isOpportunityGoal ? '🎯 Prepare for Opportunity' : g.label}
@@ -527,19 +544,22 @@ export default function LearnView({
           </div>
 
           {/* Submit Button */}
-          <div className="flex justify-center pt-2">
+          <div className="flex justify-end pt-2">
             <button
               type="submit"
               disabled={loading || !topic}
-              className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-sm transition-all shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full sm:w-auto px-8 py-3.5 rounded-full bg-[#4F7DF3] hover:bg-[#3B6CE6] disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-sm transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer"
             >
               {loading ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  <span>Searching YouTube & Ranking with AI...</span>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Searching YouTube &amp; Ranking with AI...</span>
                 </>
               ) : (
-                <span>Find Learning Resources</span>
+                <>
+                  <span aria-hidden="true">🔍</span>
+                  <span>Find Learning Resources</span>
+                </>
               )}
             </button>
           </div>
@@ -548,12 +568,15 @@ export default function LearnView({
 
       {/* Error Alert */}
       {error && (
-        <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-sm flex items-center justify-between">
+        <div
+          role="alert"
+          className="p-4 rounded-2xl bg-[#FEF2F2] border border-[#FECACA] text-[#B91C1C] text-sm flex items-center justify-between font-medium"
+        >
           <span>{error}</span>
           <button
             type="button"
             onClick={() => setError(null)}
-            className="text-rose-300 hover:text-rose-100 font-bold ml-2 text-xs cursor-pointer"
+            className="text-[#991B1B] hover:text-[#7F1D1D] font-bold ml-2 text-xs cursor-pointer"
           >
             Dismiss
           </button>
@@ -562,16 +585,16 @@ export default function LearnView({
 
       {/* Results Section */}
       {resultsData && (
-        <div className="space-y-6">
+        <div className="space-y-5">
           {/* Results Summary Bar */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl bg-slate-800/60 border border-slate-700/60">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-5 su-card">
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-base font-bold text-white">
-                  Results for &ldquo;{resultsData.topic}&rdquo;
-                </h3>
+                <h2 className="text-lg font-extrabold text-[#1E1B3A]">
+                  Recommended resources for &ldquo;{resultsData.topic}&rdquo;
+                </h2>
                 {resultsData.opportunityContext?.opportunityTitle && (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold px-3 py-0.5 rounded-full bg-[#DCFCE7] text-[#15803D] border border-[#A7F3D0]">
                     <span>🎯</span>
                     <span>
                       Learning {resultsData.opportunityContext.targetSkill} for{' '}
@@ -580,24 +603,39 @@ export default function LearnView({
                   </span>
                 )}
               </div>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Target Level: <span className="text-slate-300 font-medium">{resultsData.level}</span>
-                {goal && <span> • Goal: <span className="text-slate-300 font-medium">{goal}</span></span>}
-                {availableTime && <span> • Time: <span className="text-slate-300 font-medium">{availableTime}</span></span>}
-                {' '}• Found <span className="text-indigo-400 font-semibold">{resultsData.resources?.length || 0}</span> educational videos
+              <p className="text-xs text-[#6E6A8F] mt-1">
+                Target Level:{' '}
+                <span className="text-[#1E1B3A] font-bold">{resultsData.level}</span>
+                {goal && (
+                  <span>
+                    {' '}
+                    • Goal: <span className="text-[#1E1B3A] font-bold">{goal}</span>
+                  </span>
+                )}
+                {availableTime && (
+                  <span>
+                    {' '}
+                    • Time:{' '}
+                    <span className="text-[#1E1B3A] font-bold">{availableTime}</span>
+                  </span>
+                )}{' '}
+                • Found{' '}
+                <span className="text-[#4F7DF3] font-extrabold">
+                  {resultsData.resources?.length || 0}
+                </span>{' '}
+                educational videos
               </p>
             </div>
 
-            {/* AI Personalization Indicator */}
             <div>
               {resultsData.aiPersonalized ? (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 text-xs font-medium">
-                  <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span>
-                  Personalized & Ranked by Gemini AI
+                <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#EEF2FF] border border-[#C7D2FE] text-[#3B5BDB] text-xs font-bold">
+                  <span className="w-2 h-2 rounded-full bg-[#4F7DF3] animate-pulse" />
+                  Personalized &amp; Ranked by Gemini AI
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-700/50 border border-slate-600 text-slate-300 text-xs font-medium">
-                  Real YouTube Search Results
+                <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#F7F5FF] border border-[#DFD9F7] text-[#4B4869] text-xs font-bold">
+                  Verified YouTube Search Results
                 </span>
               )}
             </div>
@@ -617,9 +655,11 @@ export default function LearnView({
               ))}
             </div>
           ) : (
-            <div className="p-12 text-center bg-slate-800/40 rounded-2xl border border-dashed border-slate-700 text-slate-400">
-              <p className="text-base font-semibold text-white mb-1">No videos found</p>
-              <p className="text-xs">Try selecting another topic.</p>
+            <div className="p-12 text-center su-card text-[#6E6A8F]">
+              <p className="text-base font-extrabold text-[#1E1B3A] mb-1">
+                No videos found
+              </p>
+              <p className="text-xs">Try selecting another topic or level.</p>
             </div>
           )}
         </div>
@@ -627,4 +667,3 @@ export default function LearnView({
     </div>
   );
 }
-

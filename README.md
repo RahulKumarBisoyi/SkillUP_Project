@@ -561,5 +561,37 @@ The React frontend starts on `http://localhost:5173`.
   - **Strict Profile Completion & Deterministic Next Action**: Evaluates all 6 required Profile sections (`Branch / Major`, `College Year`, `Learning Hours / Day`, `Technical & Learning Interests`, `Career Goals`, and `Skills`) so partially filled profiles are accurately flagged as incomplete
   - **Consistent Task-Driven Track Progress**: Calculates `progressPercentage` and `Active`/`Completed` status strictly from stored `track_tasks` rows (handling zero-task tracks and reopened tasks identically across `Dashboard` and `My Tracks`)
   - **Visual-First Overview, Continue Learning, Opportunities, Skills & Completed Tracks**: Compact cards prioritized by `updated_at DESC`, next incomplete task preview, Milestone 7 opportunity-linked track integration, shared Milestone 5 opportunity recommendations, and automatic refresh upon returning to the Dashboard
+- [x] **Milestone 9: Complete System Testing, Quality Assurance & Stabilization**
+  - **Partial Profile Field Preservation**: `PUT /api/profile` preserves existing saved profile fields and skills when omitted from partial update payloads while allowing explicit clearing (`""`, `[]`, `null`, `0`)
+  - **Authentication & Input Validation Hardening**: Strict string type and length checks (`name <= 120`, `email <= 254` with RFC-style format validation, `password <= 128`), non-string payload safety on login/register, and `COOKIE_SAMESITE` + `trust proxy` support for HTTPS deployments
+  - **Strict Positive-Integer ID Validation**: Rejects partially numeric or malformed route parameters (`1abc`, `1.5`, `-1`, `0`) with `400 Bad Request` across `/api/tracks/:id`, `/api/tracks/:id/tasks/:taskId`, `/api/opportunities/:id`, and `/api/opportunities/:id/analyze`
+  - **Central Error Masking & Duplicate Server Guard**: Masks internal `500` error details (`Internal Server Error`) to prevent leaking database/SQL diagnostics, handles malformed JSON request bodies with `400 Malformed JSON request body.`, and guards `server.js` against duplicate port binds (`EADDRINUSE`)
 
+---
 
+## Production & Deployment-Readiness Checklist (Milestone 11 Preparation)
+
+1. **Environment Variables (`server/.env`)**:
+   - `NODE_ENV=production` — Enables `secure: true` on `httpOnly` JWT cookies.
+   - `PORT=5000` (or platform-assigned `PORT`).
+   - `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME=skillup_db` — Production MySQL 8+ credentials.
+   - `JWT_SECRET` — Replace development secret with a strong cryptographic random secret ($\ge 32$ bytes).
+   - `CLIENT_URL` — Set to the deployed HTTPS frontend origin(s) (comma-separated if multiple, e.g. `https://skillup.example.com`).
+   - `COOKIE_SAMESITE` — Defaults to `lax` (same-site deployment). Set to `none` if frontend and backend are deployed on separate domains over HTTPS.
+   - `YOUTUBE_API_KEY` — Google Cloud YouTube Data API v3 key.
+   - `GEMINI_API_KEY` & `GEMINI_MODEL` — Google Gemini API key and model name (e.g. `gemini-2.5-flash` or `gemini-flash-latest`).
+2. **Frontend Environment (`client/.env.production`)**:
+   - `VITE_API_URL` — Set to the deployed backend origin (e.g. `https://api.skillup.example.com`), or leave empty (`""`) if `/api` is reverse-proxied from the same origin.
+3. **Database Initialization & Migrations**:
+   - Run `npm run db:init` inside `server/` once against the production MySQL database to create tables, apply idempotent Milestone 7 columns/foreign keys, normalize skills, and upsert the 11 verified opportunities.
+4. **Build & Start Commands**:
+   - Frontend build: `cd client && npm install && npm run build` (outputs static bundle to `client/dist/`).
+   - Backend start: `cd server && npm install --omit=dev && npm start` (runs `node server.js` with `EADDRINUSE` and `SIGINT`/`SIGTERM` handlers).
+
+---
+
+## Remaining Limitations & Known Scope Boundaries
+
+- **MVP Academic Branch Scope**: New profile branch selections are intentionally scoped to CSE, IT, and closely related computing specializations (`7` canonical branches), while preserving previously saved legacy branches.
+- **External API Quota & Availability**: Live YouTube search requires a valid `YOUTUBE_API_KEY` with available daily quota (mitigated by a 15-minute in-memory TTL cache and in-flight request deduplication). Gemini API ranking and schedule generation enforce an 8-second master time budget and fall back deterministically if the model is unavailable or rate-limited.
+- **In-Memory Caching**: YouTube search caching and Milestone 7 signed context token replay tracking use process-local memory (appropriate for single-instance MVP deployment; multi-instance horizontal scaling would use Redis).

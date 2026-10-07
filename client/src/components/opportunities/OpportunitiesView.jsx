@@ -58,6 +58,12 @@ const STRICT_ALIAS_TO_CANONICAL = new Map([
   ['operating systems', 'operating systems'],
   ['operating system', 'operating systems'],
   ['os', 'operating systems'],
+  ['aws', 'aws'],
+  ['amazon web services', 'aws'],
+  ['cloud', 'cloud'],
+  ['cloud computing', 'cloud'],
+  ['linux', 'linux'],
+  ['gnu/linux', 'linux'],
 ]);
 
 function getCanonicalSkillKey(rawSkill) {
@@ -72,15 +78,15 @@ function getCanonicalSkillKey(rawSkill) {
 function getTypeBadgeStyle(type) {
   switch (type) {
     case 'Hackathon':
-      return 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30';
+      return 'bg-[#EEF2FF] text-[#3B5BDB] border-[#C7D2FE]';
     case 'Internship':
-      return 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30';
+      return 'bg-[#DCFCE7] text-[#15803D] border-[#A7F3D0]';
     case 'Competition':
-      return 'bg-amber-500/15 text-amber-300 border-amber-500/30';
+      return 'bg-[#FEF3C7] text-[#B45309] border-[#FDE68A]';
     case 'Workshop':
-      return 'bg-sky-500/15 text-sky-300 border-sky-500/30';
+      return 'bg-[#E0F2FE] text-[#0369A1] border-[#BAE6FD]';
     default:
-      return 'bg-slate-700/60 text-slate-300 border-slate-600';
+      return 'bg-[#F7F5FF] text-[#4B4869] border-[#DFD9F7]';
   }
 }
 
@@ -102,15 +108,15 @@ function getTypeIcon(type) {
 function getStatusBadgeStyle(status) {
   switch (status) {
     case 'Open':
-      return 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30';
+      return 'bg-[#DCFCE7] text-[#15803D] border-[#A7F3D0]';
     case 'Upcoming':
-      return 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30';
+      return 'bg-[#EEF2FF] text-[#3B5BDB] border-[#C7D2FE]';
     case 'Check Official Page':
-      return 'bg-amber-500/15 text-amber-300 border-amber-500/30';
+      return 'bg-[#FEF3C7] text-[#B45309] border-[#FDE68A]';
     case 'Expired':
-      return 'bg-rose-500/15 text-rose-300 border-rose-500/30';
+      return 'bg-[#FEF2F2] text-[#B91C1C] border-[#FECACA]';
     default:
-      return 'bg-slate-700/60 text-slate-300 border-slate-600';
+      return 'bg-[#F7F5FF] text-[#4B4869] border-[#DFD9F7]';
   }
 }
 
@@ -157,10 +163,6 @@ function formatDeadlineInfo(opp) {
   };
 }
 
-/**
- * Create a short 1–2 line summary from an opportunity description so cards and
- * headers stay quick to scan while the full text remains in expandable details.
- */
 function getConciseOpportunitySummary(opp) {
   const raw = String(opp?.description || '').trim();
   if (!raw) return 'Verified engineering opportunity.';
@@ -175,9 +177,6 @@ function getConciseOpportunitySummary(opp) {
   return `${truncated}…`;
 }
 
-/**
- * Build scannable bullet highlights for the About This Opportunity section.
- */
 function getOpportunityHighlights(opp) {
   if (!opp) return [];
   const highlights = [];
@@ -210,28 +209,26 @@ function getCriterionStatusVisual(status) {
       return {
         icon: '✓',
         label: 'Matches Profile',
-        badgeClass:
-          'bg-emerald-500/15 text-emerald-200 border-emerald-500/40',
-        rowBorderClass: 'border-emerald-500/25 bg-emerald-950/15',
-        iconBadgeClass:
-          'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+        badgeClass: 'bg-[#DCFCE7] text-[#14532D] border-[#86EFAC]',
+        rowBorderClass: 'border-[#BBF7D0] bg-[#F0FDF4]',
+        iconBadgeClass: 'bg-white text-[#15803D] border-[#86EFAC]',
       };
     case 'does_not_match':
       return {
         icon: '✕',
         label: 'Does Not Match',
-        badgeClass: 'bg-rose-500/15 text-rose-200 border-rose-500/40',
-        rowBorderClass: 'border-rose-500/25 bg-rose-950/15',
-        iconBadgeClass: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
+        badgeClass: 'bg-[#FEE2E2] text-[#991B1B] border-[#FECACA]',
+        rowBorderClass: 'border-[#FECACA] bg-[#FEF2F2]',
+        iconBadgeClass: 'bg-white text-[#DC2626] border-[#FECACA]',
       };
     case 'needs_confirmation':
     default:
       return {
         icon: '?',
         label: 'Needs Confirmation',
-        badgeClass: 'bg-amber-500/15 text-amber-200 border-amber-500/40',
-        rowBorderClass: 'border-slate-700/80 bg-slate-950/50',
-        iconBadgeClass: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+        badgeClass: 'bg-[#FEF3C7] text-[#92400E] border-[#FDE68A]',
+        rowBorderClass: 'border-[#E4DFFA] bg-[#F7F5FF]',
+        iconBadgeClass: 'bg-[#FEF3C7] text-[#B45309] border-[#FDE68A]',
       };
   }
 }
@@ -402,14 +399,12 @@ export default function OpportunitiesView({
     fetchAllOpportunities();
   }, []);
 
-  // Reset scroll position after loading or switching between list and details view
   useEffect(() => {
     if (!loading && !detailLoading) {
       scrollToTop();
     }
   }, [selectedOpportunity?.id, loading, detailLoading]);
 
-  // Synchronize selectedBridgeSkill with latest missingSkills analysis
   useEffect(() => {
     const missing = skillAnalysis?.missingSkills || [];
     if (missing.length > 0) {
@@ -481,7 +476,6 @@ export default function OpportunitiesView({
     }
   };
 
-  // Automatically open and reanalyze the target opportunity when returning from Learn, My Tracks, or Profile
   useEffect(() => {
     if (!initialOpportunityId) return;
     const targetId = Number(initialOpportunityId);
@@ -519,7 +513,6 @@ export default function OpportunitiesView({
     });
   };
 
-  // Filtered opportunities for Explore All and Recommended
   const filteredOpportunities = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
     return opportunities.filter((opp) => {
@@ -556,7 +549,6 @@ export default function OpportunitiesView({
       .sort((a, b) => (b.relevanceScore || 0) - (a.relevanceScore || 0));
   }, [filteredOpportunities]);
 
-  // Helper to check if a skill is in student's Knows or Learning list using strict canonical equivalence
   const getStudentSkillBadge = (skillName, opp) => {
     const targetKey = getCanonicalSkillKey(skillName);
     if (!targetKey) return null;
@@ -623,24 +615,24 @@ export default function OpportunitiesView({
                 onClearInitialOpportunity();
               }
             }}
-            className="inline-flex items-center gap-2 text-xs font-medium px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+            className="inline-flex items-center gap-2 text-xs font-bold px-4 py-2.5 rounded-full bg-white hover:bg-[#F7F5FF] text-[#1E1B3A] border border-[#E4DFFA] transition-colors cursor-pointer shadow-2xs"
           >
             <span aria-hidden="true">←</span>
             <span>Back to Opportunities</span>
           </button>
-          <span className="text-xs text-slate-400">
+          <span className="text-xs text-[#6E6A8F]">
             Last verified from official source:{' '}
-            <strong className="text-slate-200">{opp.lastVerifiedAt}</strong>
+            <strong className="text-[#1E1B3A]">{opp.lastVerifiedAt}</strong>
           </span>
         </div>
 
         {/* Main Opportunity Detail Card */}
-        <div className="bg-slate-800/90 border border-slate-700/80 rounded-2xl p-5 sm:p-8 shadow-xl space-y-6">
+        <div className="su-card p-6 sm:p-8 space-y-6">
           {/* Badges & Header */}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2">
               <span
-                className={`inline-flex items-center gap-1 text-xs font-semibold px-3 py-1 rounded-full border ${getTypeBadgeStyle(
+                className={`inline-flex items-center gap-1 text-xs font-bold px-3 py-1 rounded-full border ${getTypeBadgeStyle(
                   opp.type
                 )}`}
               >
@@ -648,34 +640,34 @@ export default function OpportunitiesView({
                 <span>{opp.type}</span>
               </span>
               <span
-                className={`text-xs font-semibold px-3 py-1 rounded-full border ${getStatusBadgeStyle(
+                className={`text-xs font-bold px-3 py-1 rounded-full border ${getStatusBadgeStyle(
                   opp.status
                 )}`}
               >
                 {opp.status}
               </span>
               {hostedOnUnstop && (
-                <span className="text-xs font-semibold px-3 py-1 rounded-full bg-sky-500/15 text-sky-300 border border-sky-500/30">
+                <span className="text-xs font-bold px-3 py-1 rounded-full bg-[#E0F2FE] text-[#0369A1] border border-[#BAE6FD]">
                   Hosted on Unstop
                 </span>
               )}
               {opp.isRecommended && !opp.isExpired && (
-                <span className="text-xs font-semibold px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">
+                <span className="text-xs font-bold px-3 py-1 rounded-full bg-[#EEF2FF] text-[#3B5BDB] border border-[#C7D2FE]">
                   ★ Suggested for Your Profile
                 </span>
               )}
             </div>
-            <span className="text-xs text-slate-400 font-mono">
+            <span className="text-xs text-[#726E91] font-mono">
               Edition ID: {opp.editionSlug}
             </span>
           </div>
 
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-[#1E1B3A] tracking-tight">
                 {opp.title}
               </h1>
-              <p className="text-sm sm:text-base text-indigo-300 font-medium mt-1">
+              <p className="text-sm sm:text-base text-[#4F7DF3] font-bold mt-1">
                 Organized by {opp.organization}
               </p>
             </div>
@@ -683,10 +675,10 @@ export default function OpportunitiesView({
               href={opp.sourceUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className={`inline-flex items-center justify-center gap-1.5 text-xs font-semibold px-4 py-2.5 rounded-xl transition-all shadow-sm shrink-0 self-start sm:self-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${
+              className={`inline-flex items-center justify-center gap-1.5 text-xs font-bold px-5 py-3 rounded-full transition-all shadow-xs shrink-0 self-start sm:self-auto ${
                 opp.isExpired
-                  ? 'bg-slate-700 hover:bg-slate-600 text-slate-200'
-                  : 'bg-indigo-600 hover:bg-indigo-500 text-white'
+                  ? 'bg-[#F7F5FF] hover:bg-[#ECE8FF] text-[#4B4869] border border-[#DFD9F7]'
+                  : 'bg-[#1E1B3A] hover:bg-[#2E2A54] text-white'
               }`}
             >
               <span>{getExternalButtonText(opp, false)}</span>
@@ -694,121 +686,114 @@ export default function OpportunitiesView({
             </a>
           </div>
 
-          {/* ===================================================================
-              1. KEY DETAILS SECTION
-             =================================================================== */}
+          {/* 1. KEY DETAILS SECTION */}
           <section
             aria-labelledby="key-details-heading"
             className="space-y-2.5"
           >
             <h2
               id="key-details-heading"
-              className="text-xs font-bold uppercase tracking-wider text-slate-400"
+              className="text-xs font-extrabold uppercase tracking-wider text-[#6E6A8F]"
             >
               Key Details
             </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-slate-900/70 border border-slate-700/70 rounded-xl p-3.5">
-              <div className="p-2.5 rounded-lg bg-slate-950/40 border border-slate-800/80">
-                <span className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold block">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-[#F7F5FF] border border-[#E4DFFA] rounded-2xl p-3.5">
+              <div className="p-3 rounded-xl bg-white border border-[#E8E4F8]">
+                <span className="text-[11px] uppercase tracking-wider text-[#6E6A8F] font-bold block">
                   Category
                 </span>
-                <span className="text-sm font-semibold text-slate-100 mt-1 flex items-center gap-1.5">
+                <span className="text-sm font-extrabold text-[#1E1B3A] mt-1 flex items-center gap-1.5">
                   <span aria-hidden="true">{getTypeIcon(opp.type)}</span>
                   <span>{opp.type}</span>
                 </span>
-                <span className="text-[11px] text-slate-400 mt-0.5 block truncate">
+                <span className="text-[11px] text-[#6E6A8F] mt-0.5 block truncate">
                   {opp.organization}
                 </span>
               </div>
 
-              <div className="p-2.5 rounded-lg bg-slate-950/40 border border-slate-800/80">
-                <span className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold block">
+              <div className="p-3 rounded-xl bg-white border border-[#E8E4F8]">
+                <span className="text-[11px] uppercase tracking-wider text-[#6E6A8F] font-bold block">
                   Deadline
                 </span>
                 <span
-                  className={`text-sm font-semibold mt-1 block ${
-                    opp.isExpired ? 'text-rose-400' : 'text-slate-100'
+                  className={`text-sm font-extrabold mt-1 block ${
+                    opp.isExpired ? 'text-[#B91C1C]' : 'text-[#1E1B3A]'
                   }`}
                 >
                   {deadlineInfo.text}
                 </span>
                 {deadlineInfo.subtext && (
-                  <span className="text-[11px] text-slate-400 mt-0.5 block">
+                  <span className="text-[11px] text-[#6E6A8F] mt-0.5 block">
                     {deadlineInfo.subtext}
                   </span>
                 )}
               </div>
 
-              <div className="p-2.5 rounded-lg bg-slate-950/40 border border-slate-800/80">
-                <span className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold block">
+              <div className="p-3 rounded-xl bg-white border border-[#E8E4F8]">
+                <span className="text-[11px] uppercase tracking-wider text-[#6E6A8F] font-bold block">
                   Mode / Location
                 </span>
-                <span className="text-sm font-semibold text-slate-100 mt-1 block">
+                <span className="text-sm font-extrabold text-[#1E1B3A] mt-1 block">
                   {opp.locationMode}
                 </span>
-                <span className="text-[11px] text-slate-400 mt-0.5 block">
+                <span className="text-[11px] text-[#6E6A8F] mt-0.5 block">
                   {opp.startDate
                     ? `Starts: ${opp.startDate}`
                     : 'See official schedule'}
                 </span>
               </div>
 
-              <div className="p-2.5 rounded-lg bg-slate-950/40 border border-slate-800/80">
-                <span className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold block">
+              <div className="p-3 rounded-xl bg-white border border-[#E8E4F8]">
+                <span className="text-[11px] uppercase tracking-wider text-[#6E6A8F] font-bold block">
                   Application Status
                 </span>
-                <span className="text-sm font-semibold text-slate-100 mt-1 block">
+                <span className="text-sm font-extrabold text-[#1E1B3A] mt-1 block">
                   {opp.status}
                 </span>
-                <span className="text-[11px] text-slate-400 mt-0.5 block">
+                <span className="text-[11px] text-[#6E6A8F] mt-0.5 block">
                   Verified: {opp.lastVerifiedAt}
                 </span>
               </div>
             </div>
           </section>
 
-          {/* ===================================================================
-              2. ABOUT THIS OPPORTUNITY SECTION (CONCISE + BULLETS + EXPANDABLE)
-             =================================================================== */}
+          {/* 2. ABOUT THIS OPPORTUNITY SECTION */}
           <section
             aria-labelledby="about-opportunity-heading"
-            className="p-4 sm:p-5 rounded-2xl bg-slate-900/60 border border-slate-700/70 space-y-3"
+            className="p-5 rounded-2xl bg-[#F7F5FF] border border-[#E4DFFA] space-y-3"
           >
             <div className="flex items-center justify-between gap-2">
               <h2
                 id="about-opportunity-heading"
-                className="text-sm sm:text-base font-bold text-white"
+                className="text-sm sm:text-base font-extrabold text-[#1E1B3A]"
               >
                 About This Opportunity
               </h2>
-              <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+              <span className="text-[11px] font-bold px-3 py-0.5 rounded-full bg-white text-[#4B4869] border border-[#DFD9F7]">
                 Quick Overview
               </span>
             </div>
 
-            {/* Short 1-2 line summary */}
-            <p className="text-xs sm:text-sm text-slate-200 font-medium leading-relaxed">
+            <p className="text-xs sm:text-sm text-[#1E1B3A] font-medium leading-relaxed">
               {shortAbout}
             </p>
 
-            {/* Scannable Bullet Highlights */}
             <ul className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1">
               {highlights.map((item) => (
                 <li
                   key={item.label}
-                  className="p-2.5 rounded-xl bg-slate-950/50 border border-slate-800/80 text-xs"
+                  className="p-3 rounded-xl bg-white border border-[#E8E4F8] text-xs"
                 >
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-300 block">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#4F7DF3] block">
                     {item.label}
                   </span>
-                  <span className="text-slate-300 mt-0.5 block leading-snug">
+                  <span className="text-[#4B4869] font-medium mt-0.5 block leading-snug">
                     {item.value}
                   </span>
                 </li>
               ))}
             </ul>
 
-            {/* Expandable Full Description when longer than summary */}
             {opp.description && opp.description.length > shortAbout.length && (
               <div className="pt-1">
                 <button
@@ -816,7 +801,7 @@ export default function OpportunitiesView({
                   aria-expanded={showFullAbout}
                   aria-controls="about-opportunity-details-panel"
                   onClick={() => setShowFullAbout((prev) => !prev)}
-                  className="text-xs font-semibold text-indigo-300 hover:text-indigo-200 inline-flex items-center gap-1.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 rounded px-1 py-0.5"
+                  className="text-xs font-bold text-[#4F7DF3] hover:text-[#1E1B3A] inline-flex items-center gap-1.5 cursor-pointer rounded px-1 py-0.5"
                 >
                   <span>
                     {showFullAbout
@@ -829,7 +814,7 @@ export default function OpportunitiesView({
                     id="about-opportunity-details-panel"
                     role="region"
                     aria-label="Full opportunity description"
-                    className="mt-2 p-3.5 rounded-xl bg-slate-950/60 border border-slate-800 text-xs sm:text-sm text-slate-300 leading-relaxed"
+                    className="mt-2 p-4 rounded-xl bg-white border border-[#E8E4F8] text-xs sm:text-sm text-[#4B4869] leading-relaxed"
                   >
                     {opp.description}
                   </div>
@@ -838,28 +823,26 @@ export default function OpportunitiesView({
             )}
           </section>
 
-          {/* ===================================================================
-              3. WHY RECOMMENDED FOR YOU SECTION (SEPARATE FROM ELIGIBILITY)
-             =================================================================== */}
+          {/* 3. WHY RECOMMENDED FOR YOU SECTION */}
           <section
             aria-labelledby="why-recommended-heading"
-            className="p-4 sm:p-5 rounded-2xl bg-indigo-950/20 border border-indigo-500/30 space-y-3"
+            className="p-5 rounded-2xl bg-[#EEF2FF]/60 border border-[#C7D2FE] space-y-3"
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap items-center gap-2">
                 <h2
                   id="why-recommended-heading"
-                  className="text-sm sm:text-base font-bold text-white"
+                  className="text-sm sm:text-base font-extrabold text-[#1E1B3A]"
                 >
                   Why Recommended for You
                 </h2>
-                <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
+                <span className="text-[11px] font-bold px-3 py-0.5 rounded-full bg-white text-[#3B5BDB] border border-[#C7D2FE]">
                   {opp.isRecommended && !opp.isExpired
                     ? '★ Matches Your Profile'
                     : 'Profile Relevance Check'}
                 </span>
               </div>
-              <span className="text-[11px] text-slate-400">
+              <span className="text-[11px] text-[#6E6A8F] font-medium">
                 Relevance suggestion only — not official eligibility
               </span>
             </div>
@@ -870,7 +853,7 @@ export default function OpportunitiesView({
                   {(opp.matchedKnowsSkills || []).map((skill) => (
                     <span
                       key={`rec-know-${skill}`}
-                      className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-200 border border-emerald-500/35 font-medium"
+                      className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-[#DCFCE7] text-[#14532D] border border-[#86EFAC] font-bold"
                     >
                       <span aria-hidden="true">✓</span>
                       <span>Knows: {skill}</span>
@@ -879,7 +862,7 @@ export default function OpportunitiesView({
                   {(opp.matchedLearningSkills || []).map((skill) => (
                     <span
                       key={`rec-learn-${skill}`}
-                      className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg bg-amber-500/15 text-amber-200 border border-amber-500/35 font-medium"
+                      className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-[#FEF3C7] text-[#92400E] border border-[#FDE68A] font-bold"
                     >
                       <span aria-hidden="true">◐</span>
                       <span>Learning: {skill}</span>
@@ -888,21 +871,21 @@ export default function OpportunitiesView({
                   {(opp.matchedInterests || []).map((interest) => (
                     <span
                       key={`rec-int-${interest}`}
-                      className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg bg-indigo-500/15 text-indigo-200 border border-indigo-500/35 font-medium"
+                      className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-white text-[#3B5BDB] border border-[#C7D2FE] font-bold"
                     >
                       <span aria-hidden="true">✦</span>
                       <span>Interest: {interest}</span>
                     </span>
                   ))}
                 </div>
-                <p className="text-xs text-slate-300">
+                <p className="text-xs text-[#4B4869]">
                   Suggested because your saved profile aligns with the tags
                   above. Always verify official rules in the Official
                   Eligibility section below.
                 </p>
               </div>
             ) : (
-              <p className="text-xs text-slate-300">
+              <p className="text-xs text-[#4B4869]">
                 {opp.isExpired
                   ? 'This is a past edition whose deadline has passed, so it is not included in active profile recommendations.'
                   : !studentContext.hasSkillsOrInterests
@@ -912,12 +895,10 @@ export default function OpportunitiesView({
             )}
           </section>
 
-          {/* ===================================================================
-              4. SKILLS & MY SKILL ANALYSIS SECTION (VISUAL-FIRST UX)
-             =================================================================== */}
+          {/* 4. SKILLS & MY SKILL ANALYSIS SECTION */}
           <section
             aria-labelledby="skill-analysis-heading"
-            className="p-4 sm:p-6 rounded-2xl bg-slate-900/90 border border-indigo-500/35 space-y-4"
+            className="p-5 sm:p-6 rounded-2xl bg-[#F7F5FF] border border-[#DFD9F7] space-y-4"
           >
             {/* Header Row */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -925,11 +906,11 @@ export default function OpportunitiesView({
                 <div className="flex flex-wrap items-center gap-2">
                   <h2
                     id="skill-analysis-heading"
-                    className="text-base sm:text-lg font-extrabold text-white tracking-tight"
+                    className="text-base sm:text-lg font-extrabold text-[#1E1B3A] tracking-tight"
                   >
-                    Skills & My Skill Analysis
+                    Skills &amp; My Skill Analysis
                   </h2>
-                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold px-3 py-0.5 rounded-full bg-white text-[#3B5BDB] border border-[#C7D2FE]">
                     <span aria-hidden="true">✦</span>
                     <span>
                       {skillAnalysis?.analysisType ===
@@ -941,7 +922,7 @@ export default function OpportunitiesView({
                     </span>
                   </span>
                 </div>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-[#6E6A8F]">
                   Compared with your saved profile skills — helpful preparation
                   topics, not mandatory eligibility rules.
                 </p>
@@ -952,7 +933,7 @@ export default function OpportunitiesView({
                   type="button"
                   onClick={() => handleRunSkillAnalysis(opp.id)}
                   disabled={analysisLoading}
-                  className="text-xs font-semibold px-3.5 py-2 rounded-xl bg-indigo-600/90 hover:bg-indigo-500 disabled:opacity-50 text-white transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                  className="text-xs font-bold px-4 py-2 rounded-full bg-[#4F7DF3] hover:bg-[#3B6CE6] disabled:opacity-50 text-white transition-colors cursor-pointer"
                 >
                   {analysisLoading ? 'Analyzing...' : 'Refresh Analysis'}
                 </button>
@@ -969,7 +950,7 @@ export default function OpportunitiesView({
                           null,
                       })
                     }
-                    className="text-xs font-semibold px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                    className="text-xs font-bold px-4 py-2 rounded-full bg-white hover:bg-[#EEF2FF] text-[#1E1B3A] border border-[#DFD9F7] transition-colors cursor-pointer"
                   >
                     Update Profile Skills
                   </button>
@@ -981,28 +962,28 @@ export default function OpportunitiesView({
               <div
                 role="status"
                 aria-live="polite"
-                className="py-6 flex items-center justify-center gap-3 text-slate-400 text-xs"
+                className="py-6 flex items-center justify-center gap-3 text-[#6E6A8F] text-xs font-medium"
               >
-                <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                <div className="w-5 h-5 border-2 border-[#4F7DF3] border-t-transparent rounded-full animate-spin" />
                 <span>Comparing your saved profile skills...</span>
               </div>
             ) : analysisError ? (
               <div
                 role="alert"
-                className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
+                className="p-4 rounded-2xl bg-[#FEF2F2] border border-[#FECACA] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
               >
-                <p className="text-xs text-rose-300">{analysisError}</p>
+                <p className="text-xs text-[#B91C1C] font-medium">{analysisError}</p>
                 <button
                   type="button"
                   onClick={() => handleRunSkillAnalysis(opp.id)}
-                  className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+                  className="text-xs font-bold px-4 py-1.5 rounded-full bg-[#DC2626] hover:bg-[#B91C1C] text-white cursor-pointer"
                 >
                   Retry Analysis
                 </button>
               </div>
             ) : skillAnalysis ? (
               <div className="space-y-4">
-                {/* Compact Visual Overview Strip (Known / Currently Learning / Skills to Develop) */}
+                {/* Compact Visual Overview Strip */}
                 {skillAnalysis.analysisType !== 'no_skills_specified' && (
                   <div
                     role="group"
@@ -1010,63 +991,63 @@ export default function OpportunitiesView({
                     className="grid grid-cols-3 gap-2.5 sm:gap-3"
                   >
                     {/* Tile 1: Known Skills */}
-                    <div className="p-3 sm:p-3.5 rounded-xl bg-emerald-950/25 border border-emerald-500/30 flex items-center gap-2.5 sm:gap-3">
+                    <div className="p-3.5 rounded-2xl bg-[#F0FDF4] border border-[#BBF7D0] flex items-center gap-3">
                       <span
                         aria-hidden="true"
-                        className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-bold text-sm flex items-center justify-center shrink-0"
+                        className="w-9 h-9 rounded-xl bg-[#DCFCE7] border border-[#86EFAC] text-[#15803D] font-extrabold text-sm flex items-center justify-center shrink-0"
                       >
                         ✓
                       </span>
                       <div className="min-w-0">
-                        <div className="text-base sm:text-xl font-extrabold text-emerald-300 leading-none">
+                        <div className="text-lg sm:text-xl font-extrabold text-[#15803D] leading-none">
                           {knownCount}
                         </div>
-                        <div className="text-[11px] sm:text-xs font-semibold text-slate-200 truncate mt-1">
+                        <div className="text-[11px] sm:text-xs font-bold text-[#1E1B3A] truncate mt-1">
                           Known Skills
                         </div>
-                        <div className="text-[10px] text-slate-400 hidden sm:block">
+                        <div className="text-[10px] text-[#6E6A8F] hidden sm:block">
                           Ready in profile
                         </div>
                       </div>
                     </div>
 
                     {/* Tile 2: Currently Learning */}
-                    <div className="p-3 sm:p-3.5 rounded-xl bg-amber-950/25 border border-amber-500/30 flex items-center gap-2.5 sm:gap-3">
+                    <div className="p-3.5 rounded-2xl bg-[#FFFBEB] border border-[#FDE68A] flex items-center gap-3">
                       <span
                         aria-hidden="true"
-                        className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold text-sm flex items-center justify-center shrink-0"
+                        className="w-9 h-9 rounded-xl bg-[#FEF3C7] border border-[#FDE68A] text-[#B45309] font-extrabold text-sm flex items-center justify-center shrink-0"
                       >
                         ◐
                       </span>
                       <div className="min-w-0">
-                        <div className="text-base sm:text-xl font-extrabold text-amber-300 leading-none">
+                        <div className="text-lg sm:text-xl font-extrabold text-[#B45309] leading-none">
                           {learningCount}
                         </div>
-                        <div className="text-[11px] sm:text-xs font-semibold text-slate-200 truncate mt-1">
+                        <div className="text-[11px] sm:text-xs font-bold text-[#1E1B3A] truncate mt-1">
                           Currently Learning
                         </div>
-                        <div className="text-[10px] text-slate-400 hidden sm:block">
+                        <div className="text-[10px] text-[#6E6A8F] hidden sm:block">
                           In progress
                         </div>
                       </div>
                     </div>
 
                     {/* Tile 3: Skills to Develop */}
-                    <div className="p-3 sm:p-3.5 rounded-xl bg-slate-800/80 border border-indigo-500/30 flex items-center gap-2.5 sm:gap-3">
+                    <div className="p-3.5 rounded-2xl bg-white border border-[#C7D2FE] flex items-center gap-3">
                       <span
                         aria-hidden="true"
-                        className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 font-bold text-sm flex items-center justify-center shrink-0"
+                        className="w-9 h-9 rounded-xl bg-[#EEF2FF] border border-[#C7D2FE] text-[#3B5BDB] font-extrabold text-sm flex items-center justify-center shrink-0"
                       >
                         +
                       </span>
                       <div className="min-w-0">
-                        <div className="text-base sm:text-xl font-extrabold text-indigo-300 leading-none">
+                        <div className="text-lg sm:text-xl font-extrabold text-[#3B5BDB] leading-none">
                           {missingCount}
                         </div>
-                        <div className="text-[11px] sm:text-xs font-semibold text-slate-200 truncate mt-1">
+                        <div className="text-[11px] sm:text-xs font-bold text-[#1E1B3A] truncate mt-1">
                           Skills to Develop
                         </div>
-                        <div className="text-[10px] text-slate-400 hidden sm:block">
+                        <div className="text-[10px] text-[#6E6A8F] hidden sm:block">
                           Explore next
                         </div>
                       </div>
@@ -1074,9 +1055,9 @@ export default function OpportunitiesView({
                   </div>
                 )}
 
-                {/* Concise, Encouraging 1-Line Summary Banner */}
-                <div className="px-3.5 py-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/25 flex items-start sm:items-center justify-between gap-3">
-                  <p className="text-xs sm:text-sm text-slate-100 font-medium leading-snug">
+                {/* Concise 1-Line Summary Banner */}
+                <div className="px-4 py-3 rounded-2xl bg-white border border-[#DFD9F7] flex items-start sm:items-center justify-between gap-3">
+                  <p className="text-xs sm:text-sm text-[#1E1B3A] font-semibold leading-snug">
                     {skillAnalysis.conciseSummary || skillAnalysis.summary}
                   </p>
                   {skillAnalysis.studentSkillCount === 0 &&
@@ -1093,7 +1074,7 @@ export default function OpportunitiesView({
                               null,
                           })
                         }
-                        className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-200 border border-indigo-500/40 shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                        className="text-xs font-bold px-3.5 py-1.5 rounded-full bg-[#EEF2FF] hover:bg-[#E0E7FF] text-[#3B5BDB] border border-[#C7D2FE] shrink-0 cursor-pointer"
                       >
                         Add Skills →
                       </button>
@@ -1102,7 +1083,7 @@ export default function OpportunitiesView({
 
                 {/* Three Grouped Skill Chip Cards */}
                 {skillAnalysis.analysisType === 'no_skills_specified' ? (
-                  <div className="p-4 rounded-xl bg-slate-800/60 border border-slate-700 text-xs text-slate-300">
+                  <div className="p-4 rounded-2xl bg-white border border-[#E8E4F8] text-xs text-[#4B4869]">
                     No specific technical skills are listed for this
                     opportunity. Check the Official Eligibility checklist below
                     for participation details.
@@ -1110,27 +1091,27 @@ export default function OpportunitiesView({
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
                     {/* 1. Known Skills Card */}
-                    <div className="p-4 rounded-xl bg-emerald-950/20 border border-emerald-500/30 flex flex-col justify-between space-y-3">
+                    <div className="p-4 rounded-2xl bg-white border border-[#BBF7D0] flex flex-col justify-between space-y-3">
                       <div className="space-y-2">
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-1.5">
                             <span
                               aria-hidden="true"
-                              className="text-xs font-bold text-emerald-300"
+                              className="text-xs font-extrabold text-[#15803D]"
                             >
                               ✓
                             </span>
-                            <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-300">
+                            <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#15803D]">
                               Known Skills
                             </h3>
                           </div>
-                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-200 border border-emerald-500/30">
+                          <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-[#DCFCE7] text-[#14532D] border border-[#86EFAC]">
                             {knownCount}
                           </span>
                         </div>
-                        <p className="text-[11px] text-slate-400">
+                        <p className="text-[11px] text-[#6E6A8F]">
                           Marked as{' '}
-                          <strong className="text-emerald-300">Knows</strong> in
+                          <strong className="text-[#15803D]">Knows</strong> in
                           your profile
                         </p>
 
@@ -1144,11 +1125,11 @@ export default function OpportunitiesView({
                               <span
                                 role="listitem"
                                 key={skill}
-                                className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-100 border border-emerald-500/40 font-medium"
+                                className="inline-flex items-center gap-1.5 text-xs px-3 py-1 rounded-full bg-[#DCFCE7] text-[#14532D] border border-[#86EFAC] font-bold"
                               >
                                 <span
                                   aria-hidden="true"
-                                  className="text-emerald-300 font-bold"
+                                  className="text-[#15803D] font-extrabold"
                                 >
                                   ✓
                                 </span>
@@ -1160,7 +1141,7 @@ export default function OpportunitiesView({
                             ))}
                           </div>
                         ) : (
-                          <p className="text-xs text-slate-400 pt-1">
+                          <p className="text-xs text-[#6E6A8F] pt-1">
                             No matching skills marked as Knows yet.
                           </p>
                         )}
@@ -1168,27 +1149,27 @@ export default function OpportunitiesView({
                     </div>
 
                     {/* 2. Currently Learning Card */}
-                    <div className="p-4 rounded-xl bg-amber-950/20 border border-amber-500/30 flex flex-col justify-between space-y-3">
+                    <div className="p-4 rounded-2xl bg-white border border-[#FDE68A] flex flex-col justify-between space-y-3">
                       <div className="space-y-2">
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-1.5">
                             <span
                               aria-hidden="true"
-                              className="text-xs font-bold text-amber-300"
+                              className="text-xs font-extrabold text-[#B45309]"
                             >
                               ◐
                             </span>
-                            <h3 className="text-xs font-bold uppercase tracking-wider text-amber-300">
+                            <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#B45309]">
                               Currently Learning
                             </h3>
                           </div>
-                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-200 border border-amber-500/30">
+                          <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-[#FEF3C7] text-[#92400E] border border-[#FDE68A]">
                             {learningCount}
                           </span>
                         </div>
-                        <p className="text-[11px] text-slate-400">
+                        <p className="text-[11px] text-[#6E6A8F]">
                           Marked as{' '}
-                          <strong className="text-amber-300">Learning</strong>{' '}
+                          <strong className="text-[#B45309]">Learning</strong>{' '}
                           in your profile
                         </p>
 
@@ -1202,11 +1183,11 @@ export default function OpportunitiesView({
                               <span
                                 role="listitem"
                                 key={skill}
-                                className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-amber-500/15 text-amber-100 border border-amber-500/40 font-medium"
+                                className="inline-flex items-center gap-1.5 text-xs px-3 py-1 rounded-full bg-[#FEF3C7] text-[#92400E] border border-[#FDE68A] font-bold"
                               >
                                 <span
                                   aria-hidden="true"
-                                  className="text-amber-300 font-bold"
+                                  className="text-[#B45309] font-extrabold"
                                 >
                                   ◐
                                 </span>
@@ -1218,33 +1199,33 @@ export default function OpportunitiesView({
                             ))}
                           </div>
                         ) : (
-                          <p className="text-xs text-slate-400 pt-1">
+                          <p className="text-xs text-[#6E6A8F] pt-1">
                             No matching skills marked as Learning right now.
                           </p>
                         )}
                       </div>
                     </div>
 
-                    {/* 3. Skills to Develop Card (with Milestone 7 Bridge My Skill Gap actions) */}
-                    <div className="p-4 rounded-xl bg-slate-800/75 border border-indigo-500/35 flex flex-col justify-between space-y-3">
+                    {/* 3. Skills to Develop Card */}
+                    <div className="p-4 rounded-2xl bg-white border border-[#C7D2FE] flex flex-col justify-between space-y-3">
                       <div className="space-y-2.5">
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-1.5">
                             <span
                               aria-hidden="true"
-                              className="text-xs font-bold text-indigo-300"
+                              className="text-xs font-extrabold text-[#3B5BDB]"
                             >
                               +
                             </span>
-                            <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-300">
+                            <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#3B5BDB]">
                               Skills to Develop
                             </h3>
                           </div>
-                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-200 border border-indigo-500/30">
+                          <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-[#EEF2FF] text-[#3B5BDB] border border-[#C7D2FE]">
                             {missingCount}
                           </span>
                         </div>
-                        <p className="text-[11px] text-slate-400">
+                        <p className="text-[11px] text-[#6E6A8F]">
                           {missingCount > 0
                             ? 'Click Learn This Skill on any topic below to bridge your skill gap'
                             : 'Suggested topics to explore or add to your profile'}
@@ -1264,16 +1245,16 @@ export default function OpportunitiesView({
                                   role="listitem"
                                   key={skill}
                                   onClick={() => setSelectedBridgeSkill(skill)}
-                                  className={`flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl border transition-colors ${
+                                  className={`flex items-center justify-between gap-2 px-3 py-2 rounded-xl border transition-colors ${
                                     isSelectedSkill
-                                      ? 'bg-indigo-950/50 border-indigo-500/50'
-                                      : 'bg-slate-900/90 border-slate-700/80 hover:border-slate-600'
+                                      ? 'bg-[#EEF2FF] border-[#4F7DF3]'
+                                      : 'bg-[#F7F5FF] border-[#E4DFFA] hover:border-[#C7D2FE]'
                                   }`}
                                 >
-                                  <span className="inline-flex items-center gap-1.5 text-xs text-slate-100 font-semibold min-w-0 truncate">
+                                  <span className="inline-flex items-center gap-1.5 text-xs text-[#1E1B3A] font-bold min-w-0 truncate">
                                     <span
                                       aria-hidden="true"
-                                      className="text-indigo-300 font-bold"
+                                      className="text-[#4F7DF3] font-extrabold"
                                     >
                                       +
                                     </span>
@@ -1290,7 +1271,7 @@ export default function OpportunitiesView({
                                       handleBridgeSkill(skill);
                                     }}
                                     aria-label={`Learn ${skill} for ${opp.title}`}
-                                    className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition-colors shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                                    className="inline-flex items-center gap-1 text-[11px] font-bold px-3 py-1 rounded-full bg-[#4F7DF3] hover:bg-[#3B6CE6] text-white transition-colors shrink-0 cursor-pointer"
                                   >
                                     <span>Learn This Skill</span>
                                     <span aria-hidden="true">→</span>
@@ -1300,7 +1281,7 @@ export default function OpportunitiesView({
                             })}
                           </div>
                         ) : (
-                          <p className="text-xs text-emerald-300 font-medium pt-1">
+                          <p className="text-xs text-[#15803D] font-bold pt-1">
                             ✓ All suggested skills for this opportunity are in
                             your profile — no additional skill gaps identified!
                           </p>
@@ -1308,12 +1289,12 @@ export default function OpportunitiesView({
                       </div>
 
                       {missingCount > 0 && (
-                        <div className="pt-2.5 border-t border-slate-700/70 space-y-2">
+                        <div className="pt-2.5 border-t border-[#E8E4F8] space-y-2">
                           {missingCount > 1 && (
                             <div className="flex items-center justify-between gap-2">
                               <label
                                 htmlFor="bridge-skill-selector"
-                                className="text-[11px] text-slate-300 font-medium"
+                                className="text-[11px] text-[#4B4869] font-bold"
                               >
                                 Target skill:
                               </label>
@@ -1326,7 +1307,7 @@ export default function OpportunitiesView({
                                 onChange={(e) =>
                                   setSelectedBridgeSkill(e.target.value)
                                 }
-                                className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                                className="px-3 py-1 rounded-full bg-[#F7F5FF] border border-[#DFD9F7] text-xs font-semibold text-[#1E1B3A] cursor-pointer"
                               >
                                 {skillAnalysis.missingSkills.map((s) => (
                                   <option key={s} value={s}>
@@ -1344,7 +1325,7 @@ export default function OpportunitiesView({
                                   skillAnalysis.missingSkills[0]
                               )
                             }
-                            className="w-full py-2 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                            className="w-full py-2.5 px-3 rounded-full bg-[#1E1B3A] hover:bg-[#2E2A54] text-white text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
                           >
                             <span>
                               Bridge My Skill Gap (
@@ -1360,24 +1341,24 @@ export default function OpportunitiesView({
                   </div>
                 )}
 
-                {/* Expandable Section for Full Skill Comparison Context & Official Focus Areas */}
+                {/* Expandable Section for Full Skill Comparison Context */}
                 <div className="pt-1">
                   <button
                     type="button"
                     aria-expanded={showSkillDetails}
                     aria-controls="skill-analysis-details-panel"
                     onClick={() => setShowSkillDetails((prev) => !prev)}
-                    className="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl bg-slate-800/70 hover:bg-slate-800 text-xs font-semibold text-slate-300 border border-slate-700/80 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                    className="w-full flex items-center justify-between gap-2 px-4 py-2.5 rounded-2xl bg-white hover:bg-[#EEF2FF]/60 text-xs font-bold text-[#1E1B3A] border border-[#DFD9F7] transition-colors cursor-pointer"
                   >
                     <span className="flex items-center gap-2">
-                      <span aria-hidden="true" className="text-indigo-300">
+                      <span aria-hidden="true" className="text-[#4F7DF3]">
                         ℹ
                       </span>
                       <span>
-                        Official Focus Areas & Detailed Skill Comparison Notes
+                        Official Focus Areas &amp; Detailed Skill Comparison Notes
                       </span>
                     </span>
-                    <span className="text-slate-400 text-[11px] font-medium">
+                    <span className="text-[#6E6A8F] text-[11px] font-semibold">
                       {showSkillDetails ? 'Hide details ▲' : 'Show details ▼'}
                     </span>
                   </button>
@@ -1387,23 +1368,23 @@ export default function OpportunitiesView({
                       id="skill-analysis-details-panel"
                       role="region"
                       aria-label="Detailed skill comparison notes"
-                      className="mt-2.5 p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-3 text-xs text-slate-300"
+                      className="mt-2.5 p-4 rounded-2xl bg-white border border-[#E8E4F8] space-y-3 text-xs text-[#4B4869]"
                     >
                       <div className="space-y-1">
-                        <span className="font-semibold text-slate-200 block">
+                        <span className="font-bold text-[#1E1B3A] block">
                           Detailed Comparison Summary:
                         </span>
-                        <p className="text-slate-300 leading-relaxed">
+                        <p className="leading-relaxed">
                           {skillAnalysis.summary}
                         </p>
-                        <p className="text-slate-400 leading-relaxed">
+                        <p className="text-[#6E6A8F] leading-relaxed">
                           {skillAnalysis.officialSkillRequirementsNote}
                         </p>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                        <div className="p-3 rounded-lg bg-slate-900/70 border border-slate-800 space-y-1.5">
-                          <span className="font-semibold text-slate-300 block">
+                        <div className="p-3 rounded-xl bg-[#F7F5FF] border border-[#E4DFFA] space-y-1.5">
+                          <span className="font-bold text-[#1E1B3A] block">
                             Official Focus Areas / Themes (Not Mandatory
                             Prerequisites):
                           </span>
@@ -1413,22 +1394,22 @@ export default function OpportunitiesView({
                               {opp.requiredSkills.map((focusArea) => (
                                 <span
                                   key={focusArea}
-                                  className="text-[11px] px-2.5 py-0.5 rounded-md bg-slate-800 text-slate-200 border border-slate-700"
+                                  className="text-[11px] px-2.5 py-0.5 rounded-full bg-white text-[#1E1B3A] border border-[#DFD9F7] font-semibold"
                                 >
                                   {focusArea}
                                 </span>
                               ))}
                             </div>
                           ) : (
-                            <p className="text-slate-400">
+                            <p className="text-[#6E6A8F]">
                               No specific focus areas listed on the official
                               page.
                             </p>
                           )}
                         </div>
 
-                        <div className="p-3 rounded-lg bg-slate-900/70 border border-slate-800 space-y-1.5">
-                          <span className="font-semibold text-slate-300 block">
+                        <div className="p-3 rounded-xl bg-[#F7F5FF] border border-[#E4DFFA] space-y-1.5">
+                          <span className="font-bold text-[#1E1B3A] block">
                             Mandatory Technical Skill Prerequisites:
                           </span>
                           {skillAnalysis.verifiedRequiredSkills &&
@@ -1438,7 +1419,7 @@ export default function OpportunitiesView({
                                 (skill) => (
                                   <span
                                     key={skill}
-                                    className="text-[11px] px-2.5 py-0.5 rounded-md bg-slate-800 text-slate-200 border border-slate-700"
+                                    className="text-[11px] px-2.5 py-0.5 rounded-full bg-white text-[#1E1B3A] border border-[#DFD9F7] font-semibold"
                                   >
                                     {skill}
                                   </span>
@@ -1446,7 +1427,7 @@ export default function OpportunitiesView({
                               )}
                             </div>
                           ) : (
-                            <p className="text-slate-400">
+                            <p className="text-[#6E6A8F]">
                               None specified as mandatory on the official source
                               page.
                             </p>
@@ -1460,29 +1441,26 @@ export default function OpportunitiesView({
             ) : null}
           </section>
 
-          {/* ===================================================================
-              MILESTONE 6 — SECTION B: OFFICIAL ELIGIBILITY (VISUAL CHECKLIST UX)
-             =================================================================== */}
+          {/* 5. OFFICIAL ELIGIBILITY SECTION */}
           <section
             aria-labelledby="official-eligibility-heading"
-            className="p-4 sm:p-6 rounded-2xl bg-slate-900/80 border border-slate-700/80 space-y-4"
+            className="p-5 sm:p-6 rounded-2xl bg-[#F7F5FF] border border-[#DFD9F7] space-y-4"
           >
-            {/* Header Row */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <h2
                     id="official-eligibility-heading"
-                    className="text-base sm:text-lg font-extrabold text-emerald-400 tracking-tight"
+                    className="text-base sm:text-lg font-extrabold text-[#1E1B3A] tracking-tight"
                   >
                     Official Eligibility
                   </h2>
-                  <span className="inline-flex items-center gap-1 text-[11px] px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-200 border border-amber-500/35 font-semibold">
+                  <span className="inline-flex items-center gap-1 text-[11px] px-3 py-0.5 rounded-full bg-[#FEF3C7] text-[#92400E] border border-[#FDE68A] font-bold">
                     <span aria-hidden="true">?</span>
                     <span>Needs Official Confirmation</span>
                   </span>
                 </div>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-[#6E6A8F]">
                   Profile skill alignment does not confirm official eligibility.
                   Check each criterion below and verify on the organizer page.
                 </p>
@@ -1492,7 +1470,7 @@ export default function OpportunitiesView({
                 href={opp.sourceUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow-sm shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                className="inline-flex items-center justify-center gap-1.5 text-xs font-bold px-4 py-2.5 rounded-full bg-[#15803D] hover:bg-[#166534] text-white transition-all shadow-xs shrink-0"
               >
                 <span>Visit Official Opportunity</span>
                 <span aria-hidden="true">↗</span>
@@ -1503,25 +1481,25 @@ export default function OpportunitiesView({
             <div
               role="group"
               aria-label="Eligibility indicator summary"
-              className="flex flex-wrap items-center gap-2 px-3.5 py-2.5 rounded-xl bg-slate-950/60 border border-slate-800/90 text-xs"
+              className="flex flex-wrap items-center gap-2 px-4 py-2.5 rounded-2xl bg-white border border-[#E8E4F8] text-xs"
             >
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mr-1">
+              <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#6E6A8F] mr-1">
                 Checklist Key:
               </span>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-200 border border-emerald-500/35 font-medium">
-                <span aria-hidden="true" className="font-bold">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#DCFCE7] text-[#14532D] border border-[#86EFAC] font-bold">
+                <span aria-hidden="true" className="font-extrabold">
                   ✓
                 </span>
                 <span>Matches Profile ({matchesProfileCount})</span>
               </span>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-500/15 text-rose-200 border border-rose-500/35 font-medium">
-                <span aria-hidden="true" className="font-bold">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FEE2E2] text-[#991B1B] border border-[#FECACA] font-bold">
+                <span aria-hidden="true" className="font-extrabold">
                   ✕
                 </span>
                 <span>Does Not Match ({doesNotMatchCount})</span>
               </span>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/15 text-amber-200 border border-amber-500/35 font-medium">
-                <span aria-hidden="true" className="font-bold">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FEF3C7] text-[#92400E] border border-[#FDE68A] font-bold">
+                <span aria-hidden="true" className="font-extrabold">
                   ?
                 </span>
                 <span>Needs Confirmation ({needsConfirmationCount})</span>
@@ -1540,30 +1518,30 @@ export default function OpportunitiesView({
                   <div
                     role="listitem"
                     key={item.id}
-                    className={`p-3.5 rounded-xl border flex flex-col justify-between gap-2.5 ${visual.rowBorderClass}`}
+                    className={`p-4 rounded-2xl border flex flex-col justify-between gap-2.5 ${visual.rowBorderClass}`}
                   >
                     <div className="flex items-start justify-between gap-2.5">
                       <div className="flex items-center gap-2 min-w-0">
                         <span
                           aria-hidden="true"
-                          className={`w-6 h-6 rounded-md border text-xs font-bold flex items-center justify-center shrink-0 ${visual.iconBadgeClass}`}
+                          className={`w-6 h-6 rounded-full border text-xs font-extrabold flex items-center justify-center shrink-0 ${visual.iconBadgeClass}`}
                         >
                           {visual.icon}
                         </span>
-                        <h3 className="text-xs sm:text-sm font-bold text-slate-100 leading-snug">
+                        <h3 className="text-xs sm:text-sm font-extrabold text-[#1E1B3A] leading-snug">
                           {item.title}
                         </h3>
                       </div>
 
                       <span
-                        className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border shrink-0 ${visual.badgeClass}`}
+                        className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full border shrink-0 ${visual.badgeClass}`}
                       >
                         <span aria-hidden="true">{visual.icon}</span>
                         <span>{item.statusLabel || visual.label}</span>
                       </span>
                     </div>
 
-                    <p className="text-xs text-slate-300 leading-relaxed pl-8">
+                    <p className="text-xs text-[#4B4869] leading-relaxed pl-8">
                       {item.detail}
                     </p>
                   </div>
@@ -1578,17 +1556,17 @@ export default function OpportunitiesView({
                 aria-expanded={showFullEligibility}
                 aria-controls="official-eligibility-details-panel"
                 onClick={() => setShowFullEligibility((prev) => !prev)}
-                className="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl bg-slate-800/70 hover:bg-slate-800 text-xs font-semibold text-slate-300 border border-slate-700/80 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                className="w-full flex items-center justify-between gap-2 px-4 py-2.5 rounded-2xl bg-white hover:bg-[#EEF2FF]/60 text-xs font-bold text-[#1E1B3A] border border-[#DFD9F7] transition-colors cursor-pointer"
               >
                 <span className="flex items-center gap-2">
-                  <span aria-hidden="true" className="text-emerald-400">
+                  <span aria-hidden="true" className="text-[#15803D]">
                     📋
                   </span>
                   <span>
-                    Full Official Eligibility Statement & Verification Notes
+                    Full Official Eligibility Statement &amp; Verification Notes
                   </span>
                 </span>
-                <span className="text-slate-400 text-[11px] font-medium">
+                <span className="text-[#6E6A8F] text-[11px] font-semibold">
                   {showFullEligibility ? 'Hide full text ▲' : 'Read full text ▼'}
                 </span>
               </button>
@@ -1598,24 +1576,24 @@ export default function OpportunitiesView({
                   id="official-eligibility-details-panel"
                   role="region"
                   aria-label="Full official eligibility statement and notes"
-                  className="mt-2.5 p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-3"
+                  className="mt-2.5 p-4 rounded-2xl bg-white border border-[#E8E4F8] space-y-3"
                 >
                   <div className="space-y-1">
-                    <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                    <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#6E6A8F]">
                       Verified Eligibility Conditions from Official Source:
                     </h3>
-                    <p className="text-xs sm:text-sm text-slate-200 leading-relaxed">
+                    <p className="text-xs sm:text-sm text-[#1E1B3A] leading-relaxed">
                       {eligibilityText}
                     </p>
                   </div>
 
                   {skillAnalysis?.officialEligibility?.notes &&
                     skillAnalysis.officialEligibility.notes.length > 0 && (
-                      <div className="space-y-1 pt-2 border-t border-slate-800/80">
-                        <h4 className="text-xs font-semibold text-slate-300">
+                      <div className="space-y-1 pt-2 border-t border-[#E8E4F8]">
+                        <h4 className="text-xs font-bold text-[#1E1B3A]">
                           Verification Notes:
                         </h4>
-                        <ul className="text-xs text-slate-400 space-y-1 list-disc list-inside">
+                        <ul className="text-xs text-[#6E6A8F] space-y-1 list-disc list-inside">
                           {skillAnalysis.officialEligibility.notes.map(
                             (note, idx) => (
                               <li key={idx}>{note}</li>
@@ -1629,31 +1607,29 @@ export default function OpportunitiesView({
             </div>
           </section>
 
-          {/* ===================================================================
-              6. VISIT OFFICIAL PAGE / APPLY SECTION
-             =================================================================== */}
+          {/* 6. VISIT OFFICIAL PAGE / APPLY SECTION */}
           <section
             aria-labelledby="apply-section-heading"
-            className="p-4 sm:p-5 rounded-2xl bg-slate-900/90 border border-slate-700/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+            className="p-5 rounded-2xl bg-[#F7F5FF] border border-[#E4DFFA] flex flex-col sm:flex-row sm:items-center justify-between gap-4"
           >
             <div className="space-y-1.5 min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h2
                   id="apply-section-heading"
-                  className="text-sm sm:text-base font-bold text-white"
+                  className="text-sm sm:text-base font-extrabold text-[#1E1B3A]"
                 >
                   Visit Official Page / Apply
                 </h2>
-                <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-white text-[#4B4869] border border-[#DFD9F7]">
                   {hostedOnUnstop ? 'Official Unstop Listing' : 'Official Organizer Portal'}
                 </span>
               </div>
-              <p className="text-xs text-slate-300">
+              <p className="text-xs text-[#4B4869]">
                 {hostedOnUnstop
                   ? 'Submit your application directly on the official Unstop opportunity page.'
                   : 'Submit your application and confirm final rules directly on the organizer website.'}
               </p>
-              <p className="text-xs text-slate-400 font-mono truncate max-w-lg">
+              <p className="text-xs text-[#726E91] font-mono truncate max-w-lg">
                 {opp.sourceUrl}
               </p>
             </div>
@@ -1663,10 +1639,10 @@ export default function OpportunitiesView({
                 href={opp.sourceUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={`inline-flex items-center justify-center gap-2 text-xs sm:text-sm font-semibold px-5 py-2.5 rounded-xl transition-all shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${
+                className={`inline-flex items-center justify-center gap-2 text-xs sm:text-sm font-bold px-6 py-3 rounded-full transition-all shadow-xs ${
                   opp.isExpired
-                    ? 'bg-slate-700 hover:bg-slate-600 text-slate-200'
-                    : 'bg-indigo-600 hover:bg-indigo-500 text-white'
+                    ? 'bg-white hover:bg-[#ECE8FF] text-[#4B4869] border border-[#DFD9F7]'
+                    : 'bg-[#4F7DF3] hover:bg-[#3B6CE6] text-white'
                 }`}
               >
                 <span>{getExternalButtonText(opp, false)}</span>
@@ -1680,7 +1656,7 @@ export default function OpportunitiesView({
   }
 
   // ============================================================================
-  // MAIN LIST VIEW (RECOMMENDED + EXPLORE ALL + EXPLORE PLATFORMS)
+  // MAIN LIST VIEW (Screenshot 5 inspired cards, filter pills, and Unstop links)
   // ============================================================================
   const renderOpportunityCard = (opp, isRecommendedCard = false) => {
     const deadlineInfo = formatDeadlineInfo(opp);
@@ -1695,20 +1671,18 @@ export default function OpportunitiesView({
     return (
       <article
         key={`${isRecommendedCard ? 'rec' : 'all'}-${opp.id}`}
-        className={`rounded-2xl border p-4 sm:p-5 flex flex-col justify-between transition-all ${
+        className={`p-5 sm:p-6 flex flex-col justify-between transition-all ${
           opp.isExpired
-            ? 'bg-slate-800/40 border-slate-800 opacity-80'
-            : isRecommendedCard
-            ? 'bg-slate-800/90 border-indigo-500/40 hover:border-indigo-400/70 shadow-lg'
-            : 'bg-slate-800/80 border-slate-700/80 hover:border-slate-600 shadow-md'
+            ? 'su-card opacity-75 bg-white/80'
+            : 'su-card-interactive'
         }`}
       >
-        <div className="space-y-3">
+        <div className="space-y-3.5">
           {/* 1. Category, Status & Platform Badges */}
           <div className="flex flex-wrap items-center justify-between gap-1.5">
             <div className="flex flex-wrap items-center gap-1.5">
               <span
-                className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${getTypeBadgeStyle(
+                className={`inline-flex items-center gap-1 text-[11px] font-bold px-3 py-0.5 rounded-full border ${getTypeBadgeStyle(
                   opp.type
                 )}`}
               >
@@ -1716,74 +1690,50 @@ export default function OpportunitiesView({
                 <span>{opp.type}</span>
               </span>
               <span
-                className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${getStatusBadgeStyle(
+                className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${getStatusBadgeStyle(
                   opp.status
                 )}`}
               >
                 {opp.status}
               </span>
               {hostedOnUnstop && (
-                <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-sky-500/15 text-sky-300 border border-sky-500/30">
+                <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-[#E0F2FE] text-[#0369A1] border border-[#BAE6FD]">
                   Unstop
                 </span>
               )}
             </div>
             {opp.isRecommended && !opp.isExpired && (
-              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/35">
+              <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-[#EEF2FF] text-[#3B5BDB] border border-[#C7D2FE]">
                 ★ Recommended
               </span>
             )}
           </div>
 
-          {/* 2. Title & Organization */}
+          {/* 2. Title & Organization • Mode */}
           <div>
-            <h3 className="text-base font-bold text-white leading-snug">
+            <h3 className="text-base sm:text-lg font-extrabold text-[#1E1B3A] leading-snug">
               {opp.title}
             </h3>
-            <p className="text-xs text-indigo-300 font-medium mt-0.5">
-              {opp.organization}
+            <p className="text-xs text-[#6E6A8F] font-semibold mt-1">
+              {opp.organization} • {opp.locationMode}
             </p>
           </div>
 
-          {/* 3. Compact Mode/Location & Deadline Strip */}
-          <div className="grid grid-cols-2 gap-2 p-2.5 rounded-xl bg-slate-900/70 border border-slate-700/60 text-[11px]">
-            <div className="min-w-0">
-              <span className="text-slate-400 block text-[10px] uppercase tracking-wider font-semibold">
-                Mode / Location
-              </span>
-              <span className="text-slate-200 font-medium truncate block mt-0.5">
-                {opp.locationMode}
-              </span>
-            </div>
-            <div className="min-w-0">
-              <span className="text-slate-400 block text-[10px] uppercase tracking-wider font-semibold">
-                Deadline
-              </span>
-              <span
-                className={`font-semibold truncate block mt-0.5 ${
-                  opp.isExpired ? 'text-rose-400' : 'text-slate-200'
-                }`}
-              >
-                {deadlineInfo.shortText}
-              </span>
-            </div>
-          </div>
-
-          {/* 4. Short 1–2 Line Summary */}
-          <p className="text-xs text-slate-300 line-clamp-2 leading-relaxed">
+          {/* 3. Short 1–2 Line Summary */}
+          <p className="text-xs text-[#4B4869] line-clamp-2 leading-relaxed">
             {shortSummary}
           </p>
 
-          {/* 5. Compact Recommendation Chips (Distinct from Official Eligibility) */}
+          {/* 4. Compact Recommendation Chips (Distinct from Official Eligibility) */}
           {opp.isRecommended && !opp.isExpired && (
-            <div className="px-2.5 py-2 rounded-xl bg-indigo-500/10 border border-indigo-500/25 flex flex-wrap items-center gap-1.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-300 mr-0.5">
+            <div className="px-3 py-2 rounded-2xl bg-[#F7F5FF] border border-[#E4DFFA] flex flex-wrap items-center gap-1.5">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#3B5BDB] mr-0.5">
                 ★ Profile Match:
               </span>
               {matchedKnows.slice(0, 3).map((s) => (
                 <span
                   key={`card-know-${s}`}
-                  className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-200 border border-emerald-500/30 font-medium"
+                  className="text-[10px] px-2 py-0.5 rounded-full bg-[#DCFCE7] text-[#14532D] border border-[#86EFAC] font-bold"
                 >
                   ✓ {s}
                 </span>
@@ -1791,7 +1741,7 @@ export default function OpportunitiesView({
               {matchedLearning.slice(0, 2).map((s) => (
                 <span
                   key={`card-learn-${s}`}
-                  className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-200 border border-amber-500/30 font-medium"
+                  className="text-[10px] px-2 py-0.5 rounded-full bg-[#FEF3C7] text-[#92400E] border border-[#FDE68A] font-bold"
                 >
                   ◐ {s}
                 </span>
@@ -1801,7 +1751,7 @@ export default function OpportunitiesView({
                 matchedInterests.slice(0, 2).map((intItem) => (
                   <span
                     key={`card-int-${intItem}`}
-                    className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-200 border border-indigo-500/30 font-medium"
+                    className="text-[10px] px-2 py-0.5 rounded-full bg-[#EEF2FF] text-[#3B5BDB] border border-[#C7D2FE] font-bold"
                   >
                     ✦ {intItem}
                   </span>
@@ -1809,62 +1759,52 @@ export default function OpportunitiesView({
             </div>
           )}
 
-          {/* 6. Key Skills as Chips (Suggested Skills & Official Focus Kept Distinct) */}
+          {/* 5. Key Skills as Chips (Screenshot 5 pastel skill pills) */}
           <div className="space-y-2 pt-0.5">
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
-                  Suggested Skills
-                </span>
-                <span className="text-[10px] text-slate-500">
-                  ✓ Knows · ◐ Learning
-                </span>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {suggestedList.slice(0, 4).map((skill) => {
-                  const matchType = getStudentSkillBadge(skill, opp);
-                  return (
-                    <span
-                      key={skill}
-                      className={`text-[11px] px-2 py-0.5 rounded-md border inline-flex items-center gap-1 ${
-                        matchType === 'knows'
-                          ? 'bg-emerald-500/15 text-emerald-200 border-emerald-500/35 font-medium'
-                          : matchType === 'learning'
-                          ? 'bg-amber-500/15 text-amber-200 border-amber-500/35 font-medium'
-                          : 'bg-slate-900/60 text-slate-300 border-slate-700/80'
-                      }`}
-                    >
-                      {matchType === 'knows' && (
-                        <span aria-hidden="true" className="text-emerald-300">
-                          ✓
-                        </span>
-                      )}
-                      {matchType === 'learning' && (
-                        <span aria-hidden="true" className="text-amber-300">
-                          ◐
-                        </span>
-                      )}
-                      <span>{skill}</span>
-                    </span>
-                  );
-                })}
-                {suggestedList.length > 4 && (
-                  <span className="text-[10px] px-2 py-0.5 rounded-md bg-slate-900 text-slate-400 border border-slate-800">
-                    +{suggestedList.length - 4} more
+            <div className="flex flex-wrap gap-1.5">
+              {suggestedList.slice(0, 4).map((skill) => {
+                const matchType = getStudentSkillBadge(skill, opp);
+                return (
+                  <span
+                    key={skill}
+                    className={`text-[11px] px-2.5 py-0.5 rounded-full border inline-flex items-center gap-1 font-semibold ${
+                      matchType === 'knows'
+                        ? 'bg-[#DCFCE7] text-[#14532D] border-[#86EFAC]'
+                        : matchType === 'learning'
+                        ? 'bg-[#FEF3C7] text-[#92400E] border-[#FDE68A]'
+                        : 'bg-[#EEF2FF] text-[#3B5BDB] border-[#C7D2FE]'
+                    }`}
+                  >
+                    {matchType === 'knows' && (
+                      <span aria-hidden="true" className="text-[#15803D]">
+                        ✓
+                      </span>
+                    )}
+                    {matchType === 'learning' && (
+                      <span aria-hidden="true" className="text-[#B45309]">
+                        ◐
+                      </span>
+                    )}
+                    <span>{skill}</span>
                   </span>
-                )}
-              </div>
+                );
+              })}
+              {suggestedList.length > 4 && (
+                <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-[#F7F5FF] text-[#6E6A8F] border border-[#E4DFFA] font-semibold">
+                  +{suggestedList.length - 4} more
+                </span>
+              )}
             </div>
 
             {focusList.length > 0 && (
               <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
+                <span className="text-[10px] uppercase tracking-wider text-[#726E91] font-bold">
                   Focus:
                 </span>
                 {focusList.slice(0, 2).map((focus) => (
                   <span
                     key={focus}
-                    className="text-[10px] px-2 py-0.5 rounded bg-slate-900/90 text-slate-300 border border-slate-700/80"
+                    className="text-[10px] px-2 py-0.5 rounded-full bg-[#F7F5FF] text-[#4B4869] border border-[#E4DFFA] font-medium"
                   >
                     {focus}
                   </span>
@@ -1874,24 +1814,39 @@ export default function OpportunitiesView({
           </div>
         </div>
 
-        {/* 7. Action Buttons: View Details & Visit Official Page */}
-        <div className="mt-4 pt-3 border-t border-slate-700/70 flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => handleOpenDetails(opp)}
-            className="flex-1 text-xs font-semibold px-3 py-2 rounded-xl bg-slate-700/80 hover:bg-slate-700 text-white border border-slate-600 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
-          >
-            View Details
-          </button>
-          <a
-            href={opp.sourceUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs font-semibold px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white transition-colors inline-flex items-center gap-1 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
-          >
-            <span>{getExternalButtonText(opp, true)}</span>
-            <span aria-hidden="true">↗</span>
-          </a>
+        {/* 6. Footer Row: Verified Deadline + View Details + External Link (Screenshot 5 style) */}
+        <div className="mt-5 pt-3.5 border-t border-[#E8E4F8] flex flex-wrap items-center justify-between gap-2">
+          <div className="text-xs min-w-0">
+            <span className="text-[#726E91] block text-[10px] font-bold uppercase tracking-wider">
+              Deadline
+            </span>
+            <span
+              className={`font-bold truncate block ${
+                opp.isExpired ? 'text-[#B91C1C]' : 'text-[#1E1B3A]'
+              }`}
+            >
+              {deadlineInfo.shortText}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 ml-auto">
+            <button
+              type="button"
+              onClick={() => handleOpenDetails(opp)}
+              className="text-xs font-bold px-3.5 py-2 rounded-full bg-[#F7F5FF] hover:bg-[#EEF2FF] text-[#1E1B3A] border border-[#DFD9F7] transition-colors cursor-pointer"
+            >
+              View Details
+            </button>
+            <a
+              href={opp.sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-bold px-3.5 py-2 rounded-full bg-[#4F7DF3] hover:bg-[#3B6CE6] text-white transition-colors inline-flex items-center gap-1 shrink-0 shadow-2xs"
+            >
+              <span>{getExternalButtonText(opp, true)}</span>
+              <span aria-hidden="true">↗</span>
+            </a>
+          </div>
         </div>
       </article>
     );
@@ -1899,35 +1854,30 @@ export default function OpportunitiesView({
 
   return (
     <div className="space-y-8">
-      {/* Page Hero & Filter Bar */}
-      <div className="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-5 sm:p-6 shadow-lg space-y-4">
+      {/* Page Hero & Filter Bar (Screenshot 5 inspired) */}
+      <div className="su-card p-6 sm:p-8 space-y-5">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
-                Verified Opportunities
-              </span>
-              <span className="text-xs text-slate-400">
-                Hackathons · Internships · Competitions · Workshops
-              </span>
-            </div>
-            <h1 className="text-xl sm:text-2xl font-extrabold text-white">
-              Opportunity Discovery & Skill Matching
+            <span className="text-xs font-extrabold uppercase tracking-widest text-[#4F7DF3] block">
+              Matched to Your Profile
+            </span>
+            <h1 className="text-2xl sm:text-4xl font-extrabold text-[#1E1B3A] tracking-tight">
+              Opportunities
             </h1>
-            <p className="text-xs text-slate-400">
-              Compare your profile skills, check official eligibility criteria, and apply on official organizer pages.
+            <p className="text-sm text-[#4B4869]">
+              Internships, hackathons, competitions, and workshops curated around your current skills and growth goals.
             </p>
           </div>
 
           {/* Section Switcher */}
-          <div className="flex items-center bg-slate-900/90 border border-slate-700 rounded-xl p-1 self-start">
+          <div className="flex items-center bg-[#F7F5FF] border border-[#E4DFFA] rounded-full p-1 self-start">
             <button
               type="button"
               onClick={() => setActiveSection('all')}
-              className={`text-xs px-3.5 py-2 rounded-lg font-semibold transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${
+              className={`text-xs px-4 py-2 rounded-full font-bold transition-all cursor-pointer ${
                 activeSection === 'all'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-white'
+                  ? 'bg-[#4F7DF3] text-white shadow-xs'
+                  : 'text-[#5A567A] hover:text-[#1E1B3A]'
               }`}
             >
               Recommended + All
@@ -1935,10 +1885,10 @@ export default function OpportunitiesView({
             <button
               type="button"
               onClick={() => setActiveSection('recommended')}
-              className={`text-xs px-3.5 py-2 rounded-lg font-semibold transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${
+              className={`text-xs px-4 py-2 rounded-full font-bold transition-all cursor-pointer ${
                 activeSection === 'recommended'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-white'
+                  ? 'bg-[#4F7DF3] text-white shadow-xs'
+                  : 'text-[#5A567A] hover:text-[#1E1B3A]'
               }`}
             >
               Recommended ({recommendedOpportunities.length})
@@ -1947,7 +1897,7 @@ export default function OpportunitiesView({
         </div>
 
         {/* Filter Controls */}
-        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 pt-3 border-t border-slate-700/70">
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 pt-4 border-t border-[#E8E4F8]">
           {/* Category Pills */}
           <div className="flex flex-wrap items-center gap-2">
             {CATEGORY_OPTIONS.map((cat) => (
@@ -1955,10 +1905,10 @@ export default function OpportunitiesView({
                 key={cat.value}
                 type="button"
                 onClick={() => setSelectedCategory(cat.value)}
-                className={`text-xs px-3.5 py-1.5 rounded-xl font-medium border transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${
+                className={`text-xs px-4 py-2 rounded-full font-bold border transition-all cursor-pointer ${
                   selectedCategory === cat.value
-                    ? 'bg-indigo-600 text-white border-indigo-500 shadow-sm'
-                    : 'bg-slate-900/70 text-slate-300 border-slate-700 hover:border-slate-500'
+                    ? 'bg-[#4F7DF3] text-white border-[#4F7DF3] shadow-xs'
+                    : 'bg-white text-[#4B4869] border-[#E4DFFA] hover:border-[#C7D2FE] hover:text-[#1E1B3A]'
                 }`}
               >
                 {cat.label}
@@ -1975,26 +1925,26 @@ export default function OpportunitiesView({
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search title, organizer, skill..."
                 aria-label="Search opportunities by title, organizer, or skill"
-                className="w-full text-xs bg-slate-900/90 border border-slate-700 focus:border-indigo-500 rounded-xl px-3.5 py-2 text-slate-100 placeholder-slate-500 focus:outline-none"
+                className="w-full text-xs bg-[#F7F5FF] border border-[#DFD9F7] focus:bg-white focus:border-[#4F7DF3] rounded-full px-4 py-2.5 text-[#1E1B3A] placeholder-[#9490B5]"
               />
               {searchTerm && (
                 <button
                   type="button"
                   onClick={() => setSearchTerm('')}
                   aria-label="Clear search"
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-white cursor-pointer"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#6E6A8F] hover:text-[#1E1B3A] cursor-pointer"
                 >
                   ✕
                 </button>
               )}
             </div>
 
-            <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none">
+            <label className="flex items-center gap-2 text-xs font-semibold text-[#4B4869] cursor-pointer select-none">
               <input
                 type="checkbox"
                 checked={showExpired}
                 onChange={(e) => setShowExpired(e.target.checked)}
-                className="rounded border-slate-600 bg-slate-900 text-indigo-600 focus:ring-indigo-500"
+                className="rounded border-[#C7D2FE] accent-[#4F7DF3]"
               />
               <span>Show past editions</span>
             </label>
@@ -2004,17 +1954,19 @@ export default function OpportunitiesView({
 
       {/* Loading or Error States */}
       {loading ? (
-        <div className="bg-slate-800/60 border border-slate-700/70 rounded-2xl p-12 flex flex-col items-center justify-center text-slate-400">
-          <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-3"></div>
-          <p className="text-sm">Loading verified opportunities...</p>
+        <div className="su-card p-12 flex flex-col items-center justify-center text-[#5A567A]">
+          <div className="w-9 h-9 border-4 border-[#4F7DF3] border-t-transparent rounded-full animate-spin mb-3" />
+          <p className="text-sm font-semibold text-[#1E1B3A]">
+            Loading verified opportunities...
+          </p>
         </div>
       ) : error ? (
-        <div className="bg-rose-500/10 border border-rose-500/30 rounded-2xl p-6 text-center space-y-3">
-          <p className="text-sm text-rose-300 font-medium">{error}</p>
+        <div className="su-card border-[#FECACA] p-6 text-center space-y-3">
+          <p className="text-sm text-[#B91C1C] font-semibold">{error}</p>
           <button
             type="button"
             onClick={fetchAllOpportunities}
-            className="text-xs px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-semibold cursor-pointer"
+            className="text-xs px-5 py-2.5 rounded-full bg-[#4F7DF3] hover:bg-[#3B6CE6] text-white font-bold cursor-pointer"
           >
             Retry
           </button>
@@ -2025,22 +1977,22 @@ export default function OpportunitiesView({
           <section className="space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2">
               <div>
-                <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-indigo-400"></span>
+                <h2 className="text-lg font-extrabold text-[#1E1B3A] flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#4F7DF3]" />
                   <span>Recommended for You</span>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-[#EEF2FF] text-[#3B5BDB] border border-[#C7D2FE]">
                     {recommendedOpportunities.length}
                   </span>
                 </h2>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Matched to your saved skills & interests — profile relevance only, not official eligibility.
+                <p className="text-xs text-[#6E6A8F] mt-0.5">
+                  Matched to your saved skills &amp; interests — profile relevance only, not official eligibility.
                 </p>
               </div>
               {onNavigateToProfile && (
                 <button
                   type="button"
                   onClick={onNavigateToProfile}
-                  className="text-xs text-indigo-400 hover:text-indigo-300 font-medium self-start sm:self-auto cursor-pointer"
+                  className="text-xs text-[#4F7DF3] hover:text-[#3B6CE6] font-bold self-start sm:self-auto cursor-pointer"
                 >
                   Update Profile Skills →
                 </button>
@@ -2048,12 +2000,12 @@ export default function OpportunitiesView({
             </div>
 
             {!studentContext.hasSkillsOrInterests ? (
-              <div className="bg-slate-800/60 border border-slate-700/80 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="su-card p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div className="space-y-1">
-                  <h3 className="text-sm font-bold text-white">
+                  <h3 className="text-sm font-extrabold text-[#1E1B3A]">
                     Add skills or interests for personalized recommendations
                   </h3>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-[#6E6A8F]">
                     Save skills you know or are learning in your Profile to highlight matching opportunities here.
                   </p>
                 </div>
@@ -2061,18 +2013,18 @@ export default function OpportunitiesView({
                   <button
                     type="button"
                     onClick={onNavigateToProfile}
-                    className="text-xs font-semibold px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shrink-0 cursor-pointer"
+                    className="text-xs font-bold px-5 py-2.5 rounded-full bg-[#4F7DF3] hover:bg-[#3B6CE6] text-white shrink-0 cursor-pointer"
                   >
                     Go to My Profile
                   </button>
                 )}
               </div>
             ) : recommendedOpportunities.length === 0 ? (
-              <div className="bg-slate-800/50 border border-slate-700/70 rounded-2xl p-6 text-center space-y-1.5">
-                <p className="text-sm text-slate-300 font-medium">
+              <div className="su-card p-6 text-center space-y-1.5">
+                <p className="text-sm text-[#1E1B3A] font-bold">
                   No recommended opportunities match the current filter.
                 </p>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-[#6E6A8F]">
                   Switch to &ldquo;All Types&rdquo; or clear the search box to see more.
                 </p>
               </div>
@@ -2087,23 +2039,23 @@ export default function OpportunitiesView({
 
           {/* SECTION 2: EXPLORE ALL VERIFIED OPPORTUNITIES */}
           {activeSection === 'all' && (
-            <section className="space-y-4 pt-4 border-t border-slate-800">
+            <section className="space-y-4 pt-4 border-t border-[#E4DFFA]">
               <div>
-                <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                <h2 className="text-lg font-extrabold text-[#1E1B3A] flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#16A34A]" />
                   <span>Explore All Opportunities</span>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-white text-[#4B4869] border border-[#DFD9F7]">
                     {filteredOpportunities.length}
                   </span>
                 </h2>
-                <p className="text-xs text-slate-400 mt-0.5">
+                <p className="text-xs text-[#6E6A8F] mt-0.5">
                   Individually verified event editions and technical programs with official links.
                 </p>
               </div>
 
               {filteredOpportunities.length === 0 ? (
-                <div className="bg-slate-800/50 border border-slate-700/70 rounded-2xl p-8 text-center space-y-3">
-                  <p className="text-sm text-slate-300 font-medium">
+                <div className="su-card p-8 text-center space-y-3">
+                  <p className="text-sm text-[#1E1B3A] font-bold">
                     No opportunities match your current search or filter.
                   </p>
                   <button
@@ -2113,7 +2065,7 @@ export default function OpportunitiesView({
                       setSearchTerm('');
                       setShowExpired(true);
                     }}
-                    className="text-xs px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-medium cursor-pointer"
+                    className="text-xs px-5 py-2 rounded-full bg-[#4F7DF3] hover:bg-[#3B6CE6] text-white font-bold cursor-pointer"
                   >
                     Reset Filters
                   </button>
@@ -2130,17 +2082,17 @@ export default function OpportunitiesView({
 
           {/* SECTION 3: EXPLORE PLATFORMS (General Discovery Portals Kept Separate) */}
           {explorePlatforms.length > 0 && (
-            <section className="space-y-4 pt-6 border-t border-slate-800">
+            <section className="space-y-4 pt-6 border-t border-[#E4DFFA]">
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-base font-bold text-slate-200">
+                  <h2 className="text-base font-extrabold text-[#1E1B3A]">
                     Explore General Discovery Platforms
                   </h2>
-                  <span className="text-[11px] px-2.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
+                  <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-white text-[#6E6A8F] border border-[#DFD9F7]">
                     External Directories
                   </span>
                 </div>
-                <p className="text-xs text-slate-400 mt-0.5">
+                <p className="text-xs text-[#6E6A8F] mt-0.5">
                   Browse broader directories for additional hackathons, internships, and competitions.
                 </p>
               </div>
@@ -2160,29 +2112,27 @@ export default function OpportunitiesView({
                       href={platform.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className={`rounded-xl p-4 flex flex-col justify-between transition-all group border ${
-                        isUnstopPlatform
-                          ? 'bg-slate-800/80 hover:bg-slate-800 border-indigo-500/40 hover:border-indigo-400/70 shadow-md'
-                          : 'bg-slate-800/50 hover:bg-slate-800 border-slate-700/70 hover:border-slate-600'
+                      className={`p-5 flex flex-col justify-between transition-all group ${
+                        isUnstopPlatform ? 'su-hero-mint' : 'su-card-interactive'
                       }`}
                     >
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700 inline-block">
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-white text-[#3B5BDB] border border-[#C7D2FE] inline-block">
                             {platform.category}
                           </span>
-                          <span className="text-[11px] text-slate-400 font-mono truncate max-w-[160px]">
+                          <span className="text-[11px] text-[#726E91] font-mono truncate max-w-[160px]">
                             {platform.url}
                           </span>
                         </div>
-                        <h3 className="text-sm font-bold text-white group-hover:text-indigo-300 transition-colors">
+                        <h3 className="text-sm font-extrabold text-[#1E1B3A] group-hover:text-[#4F7DF3] transition-colors">
                           {platform.name}
                         </h3>
-                        <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
+                        <p className="text-xs text-[#4B4869] line-clamp-2 leading-relaxed">
                           {platform.description}
                         </p>
                       </div>
-                      <div className="mt-3 pt-2.5 border-t border-slate-700/50 flex items-center justify-between text-xs text-indigo-400 group-hover:text-indigo-300 font-semibold">
+                      <div className="mt-3 pt-2.5 border-t border-[#E8E4F8] flex items-center justify-between text-xs text-[#4F7DF3] font-bold">
                         <span>{ctaText}</span>
                         <span aria-hidden="true">↗</span>
                       </div>

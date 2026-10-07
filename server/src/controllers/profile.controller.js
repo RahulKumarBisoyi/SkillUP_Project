@@ -152,45 +152,18 @@ export async function updateProfile(req, res, next) {
   let conn;
 
   try {
-    const {
-      branch = '',
-      college_year = null,
-      interests = '',
-      career_goals = '',
-      learning_hours_per_day = 0,
-      skills = [],
-    } = req.body;
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const hasBranchProp = Object.prototype.hasOwnProperty.call(body, 'branch') && body.branch !== undefined;
+    const hasYearProp = Object.prototype.hasOwnProperty.call(body, 'college_year') && body.college_year !== undefined;
+    const hasInterestsProp = Object.prototype.hasOwnProperty.call(body, 'interests') && body.interests !== undefined;
+    const hasGoalsProp = Object.prototype.hasOwnProperty.call(body, 'career_goals') && body.career_goals !== undefined;
+    const hasHoursProp =
+      Object.prototype.hasOwnProperty.call(body, 'learning_hours_per_day') &&
+      body.learning_hours_per_day !== undefined;
+    const hasSkillsProp = Object.prototype.hasOwnProperty.call(body, 'skills') && body.skills !== undefined;
 
-    // Validate college_year
-    let parsedYear = null;
-    if (college_year !== null && college_year !== '' && college_year !== undefined) {
-      parsedYear = parseInt(college_year, 10);
-      if (isNaN(parsedYear) || parsedYear < 1 || parsedYear > 10) {
-        return res.status(400).json({
-          status: 'error',
-          message: 'College year must be a valid number between 1 and 10.',
-        });
-      }
-    }
-
-    // Validate learning_hours_per_day
-    let parsedHours = 0;
-    if (
-      learning_hours_per_day !== null &&
-      learning_hours_per_day !== undefined &&
-      learning_hours_per_day !== ''
-    ) {
-      parsedHours = parseFloat(learning_hours_per_day);
-      if (isNaN(parsedHours) || parsedHours < 0 || parsedHours > 24) {
-        return res.status(400).json({
-          status: 'error',
-          message: 'Learning hours per day must be a number between 0 and 24.',
-        });
-      }
-    }
-
-    // Validate skills array
-    if (!Array.isArray(skills)) {
+    // Validate skills array if provided
+    if (hasSkillsProp && !Array.isArray(body.skills)) {
       return res.status(400).json({
         status: 'error',
         message: 'Skills must be an array of skill objects.',
@@ -200,20 +173,68 @@ export async function updateProfile(req, res, next) {
     conn = await pool.getConnection();
     await conn.beginTransaction();
 
-    // Load the student's existing profile row inside the transaction to preserve their own legacy branch/interests/goals
+    // Load the student's existing profile row inside the transaction to preserve omitted fields and legacy values
     const [existingProfileRows] = await conn.execute(
-      `SELECT branch, interests, career_goals FROM profiles WHERE user_id = ? FOR UPDATE`,
+      `SELECT branch, college_year, interests, career_goals, learning_hours_per_day
+       FROM profiles
+       WHERE user_id = ?
+       FOR UPDATE`,
       [userId]
     );
-    const existingBranchRaw =
-      existingProfileRows.length > 0 ? existingProfileRows[0].branch || '' : '';
-    const existingInterestsRaw =
-      existingProfileRows.length > 0 ? existingProfileRows[0].interests || '' : '';
-    const existingCareerGoalsRaw =
-      existingProfileRows.length > 0 ? existingProfileRows[0].career_goals || '' : '';
+    const existingRow = existingProfileRows.length > 0 ? existingProfileRows[0] : null;
+    const existingBranchRaw = existingRow?.branch || '';
+    const existingInterestsRaw = existingRow?.interests || '';
+    const existingCareerGoalsRaw = existingRow?.career_goals || '';
+    const existingYearRaw =
+      existingRow && existingRow.college_year !== null && existingRow.college_year !== undefined
+        ? parseInt(existingRow.college_year, 10)
+        : null;
+    const existingHoursRaw =
+      existingRow &&
+      existingRow.learning_hours_per_day !== null &&
+      existingRow.learning_hours_per_day !== undefined
+        ? parseFloat(existingRow.learning_hours_per_day)
+        : 0;
 
+    // Validate college_year (use existing value if omitted from request body)
+    let parsedYear = existingYearRaw;
+    if (hasYearProp) {
+      const rawYear = body.college_year;
+      if (rawYear === null || rawYear === '') {
+        parsedYear = null;
+      } else {
+        parsedYear = parseInt(rawYear, 10);
+        if (isNaN(parsedYear) || parsedYear < 1 || parsedYear > 10) {
+          await conn.rollback();
+          return res.status(400).json({
+            status: 'error',
+            message: 'College year must be a valid number between 1 and 10.',
+          });
+        }
+      }
+    }
+
+    // Validate learning_hours_per_day (use existing value if omitted from request body)
+    let parsedHours = existingHoursRaw;
+    if (hasHoursProp) {
+      const rawHours = body.learning_hours_per_day;
+      if (rawHours === null || rawHours === '') {
+        parsedHours = 0;
+      } else {
+        parsedHours = parseFloat(rawHours);
+        if (isNaN(parsedHours) || parsedHours < 0 || parsedHours > 24) {
+          await conn.rollback();
+          return res.status(400).json({
+            status: 'error',
+            message: 'Learning hours per day must be a number between 0 and 24.',
+          });
+        }
+      }
+    }
+
+    const branchInput = hasBranchProp ? body.branch : existingBranchRaw;
     const validatedBranch = normalizeAndValidateProfileBranch({
-      rawBranch: branch,
+      rawBranch: branchInput,
       existingSavedBranch: existingBranchRaw,
       allowAllExistingAsLegacy: false,
     });
@@ -225,8 +246,9 @@ export async function updateProfile(req, res, next) {
       });
     }
 
+    const interestsInput = hasInterestsProp ? body.interests : existingInterestsRaw;
     const validatedInterests = normalizeAndValidateProfileMultiSelect({
-      rawInput: interests,
+      rawInput: interestsInput,
       catalog: PREDEFINED_INTERESTS_CATALOG,
       existingSavedRaw: existingInterestsRaw,
       fieldLabel: 'Technical & Learning Interests',
@@ -240,8 +262,9 @@ export async function updateProfile(req, res, next) {
       });
     }
 
+    const careerGoalsInput = hasGoalsProp ? body.career_goals : existingCareerGoalsRaw;
     const validatedCareerGoals = normalizeAndValidateProfileMultiSelect({
-      rawInput: career_goals,
+      rawInput: careerGoalsInput,
       catalog: PREDEFINED_CAREER_GOALS_CATALOG,
       existingSavedRaw: existingCareerGoalsRaw,
       fieldLabel: 'Career Goals',
@@ -261,7 +284,7 @@ export async function updateProfile(req, res, next) {
     // Load the student's own previously saved skills inside the transaction
     // so only their own legacy entries can be retained or have their status updated
     const [existingSkillRows] = await conn.execute(
-      `SELECT skill, status FROM user_skills WHERE user_id = ? FOR UPDATE`,
+      `SELECT skill, status FROM user_skills WHERE user_id = ? ORDER BY id ASC FOR UPDATE`,
       [userId]
     );
 
@@ -276,9 +299,13 @@ export async function updateProfile(req, res, next) {
       }
     }
 
+    const skillsToProcess = hasSkillsProp
+      ? body.skills
+      : existingSkillRows.map((r) => ({ skill: r.skill, status: r.status }));
+
     const dedupMap = new Map();
 
-    for (const item of skills) {
+    for (const item of skillsToProcess) {
       if (!item || typeof item !== 'object' || typeof item.skill !== 'string') {
         await conn.rollback();
         return res.status(400).json({
