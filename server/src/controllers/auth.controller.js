@@ -10,16 +10,11 @@ function getJwtSecret() {
 
 function getCookieOptions() {
   const isProd = process.env.NODE_ENV === 'production';
-  const configuredSameSite = (process.env.COOKIE_SAMESITE || '').trim().toLowerCase();
-  const sameSite =
-    isProd && (configuredSameSite === 'none' || configuredSameSite === 'strict' || configuredSameSite === 'lax')
-      ? configuredSameSite
-      : 'lax';
 
   return {
     httpOnly: true,
-    secure: isProd || sameSite === 'none',
-    sameSite,
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   };
 }
